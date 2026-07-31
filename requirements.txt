@@ -1,5 +1,12 @@
-FreeSimpleGUI~=5.2.0.post1
 typing~=3.7.4.3
+numpy
 pandas
 matplotlib
 seaborn
+## MkDocs
+mkdocs
+mkdocs-material
+mkdocstrings[python]
+mkdocs-autorefs
+pymdown-extensions
+black
