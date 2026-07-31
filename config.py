@@ -1,6 +1,6 @@
 '''
   ******************************************************************************************
-      Assembly:                fscal
+      Assembly:                fiscal
       Filename:                config.py
       Author:                  Terry D. Eppler
       Created:                 05-31-2022
