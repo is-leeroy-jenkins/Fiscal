@@ -75,7 +75,7 @@ from datetime import date
 from tempus import FederalHoliday, FiscalYear
 ```
 
-### Fiscal Year
+### Fiscal Year Usage
 
 ```python
 fy = FiscalYear("2026")
@@ -181,7 +181,7 @@ holiday_values = fy.holidays
 
 `ID` and `FiscalYear` are excluded. Null values are returned as empty strings.
 
-### Federal Holiday
+### Federal Holiday Usage
 
 ```python
 
