@@ -239,19 +239,14 @@ holiday_record = holidays.to_dict()
 
 ## 🧠 API Overview
 
+- [Key Definitions](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md#%EF%B8%8F-defninitions)
+
 ```python
 
 from tempus import DB, FederalHoliday, FiscalYear, throw_if, to_date
 
 ```
 
-### `DB`
-
-| Member                                                                                                                          | Signature                                              |
-|---------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| [create_connection](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L166) | `create_connection() -> sqlite3.Connection`            |
-| [query_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L186)        | `query_year(name, fy, bpoa, epoa) -> pandas.DataFrame` |
-| [query_holiday](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L228)     | `query_holiday(name, fy) -> pandas.DataFrame`          |
 
 ### `FiscalYear`
 
