@@ -243,7 +243,7 @@ holiday_record = holidays.to_dict()
 
 ```python
 
-from tempus import DB, FederalHoliday, FiscalYear, throw_if, to_date
+from fiscal import DB, FederalHoliday, FiscalYear, throw_if, to_date
 
 ```
 
