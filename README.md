@@ -13,6 +13,10 @@
   &nbsp;&bull;&nbsp;
   <a href="#api-overview">API Overview</a>
   &nbsp;&bull;&nbsp;
+  <a href="#api-overview">User Guide</a>
+  &nbsp;&bull;&nbsp;
+  <a href="#api-overview">Developer Guide</a>
+  &nbsp;&bull;&nbsp;
   <a href="#license">License</a>
 </p>
 
