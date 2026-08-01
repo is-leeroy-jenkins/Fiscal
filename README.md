@@ -1,6 +1,6 @@
 ###### fiscal
 
-![](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/images/github/project_fiscal.png)
+![](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/images/github/project_tempus.png)
 
 <p align="left">
   <a href="#features">Features</a>
