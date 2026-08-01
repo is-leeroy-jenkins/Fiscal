@@ -92,9 +92,7 @@
 
 ## 🧠 API Overview
 
-#### [Definitions](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md)
-
-#### Fiscal Year 
+#### [Fiscal Year](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md#fiscal-year) 
 
 - The fiscal year is the accounting period of the federal government. It begins on October 1 and ends 
 on September 30 of the next calendar year. Each fiscal year is identified by the calendar year in 
