@@ -8,7 +8,7 @@
       Last Modified By:        Terry D. Eppler
       Last Modified On:        08-26-2025
     ******************************************************************************************
-    <copyright file="init.py" company="Terry D. Eppler">
+    <copyright file="fiscal.py" company="Terry D. Eppler">
 
          Budget Fiscal Year Tools
 
