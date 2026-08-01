@@ -1,13 +1,13 @@
-# tempus User Guide
+# fiscal User Guide
 
-`tempus` provides database-backed U.S. federal fiscal-year, calendar-year, federal-holiday, workday, and weekend calculations for Python applications and ad-hoc analysis.
+`fiscal` provides database-backed U.S. federal fiscal-year, calendar-year, federal-holiday, workday, and weekend calculations for Python applications and ad-hoc analysis.
 
 The examples assume the library and its packaged fiscal data are already installed and available.
 
 ## Installation
 
 ```bash
-pip install tempus
+pip install fiscal
 ```
 
 ## Imports
@@ -15,7 +15,7 @@ pip install tempus
 ```python
 from datetime import date, datetime
 
-from tempus import FederalHoliday, FiscalYear
+from fiscal import FederalHoliday, FiscalYear
 ```
 
 For pandas analysis:
@@ -29,7 +29,7 @@ import pandas as pd
 Create a fiscal-year object:
 
 ```python
-from tempus import FiscalYear
+from fiscal import FiscalYear
 
 fy = FiscalYear("2026")
 ```
