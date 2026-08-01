@@ -1,0 +1,33 @@
+:root {
+  --md-primary-fg-color: #1f3a56;
+  --md-primary-fg-color--light: #315b82;
+  --md-primary-fg-color--dark: #14283c;
+  --md-accent-fg-color: #d4a72c;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0d1117;
+  --md-default-fg-color: #e6edf3;
+  --md-code-bg-color: #161b22;
+  --md-code-fg-color: #e6edf3;
+  --md-typeset-a-color: #d4a72c;
+}
+
+.md-header,
+.md-tabs {
+  background-color: #1f3a56;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 700;
+}
+
+.md-typeset table:not([class]) {
+  font-size: 0.8rem;
+}
+
+.md-typeset code {
+  border-radius: 0.2rem;
+}
