@@ -92,11 +92,11 @@
 
 ## 🧠 API Overview
 
-#### ![Defninitions]()
+#### ![Definitions](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md)
 
-##### Fiscal Year 
+#### Fiscal Year 
 
-The fiscal year is the accounting period of the federal government. It begins on October 1 and ends 
+- The fiscal year is the accounting period of the federal government. It begins on October 1 and ends 
 on September 30 of the next calendar year. Each fiscal year is identified by the calendar year in 
 which it ends and commonly is referred to as "FY." For example, FY2011 began October 1, 2010, and 
 ends September 30, 2011.
@@ -107,7 +107,7 @@ ends September 30, 2011.
 - ranges: `count_weekends(start, end)`, `count_holidays(start, end)`, `count_workdays(start, end)`
 - bounds & checks: `calendar_bounds()`, `fiscal_bounds()`, `is_calendar_year_start()`, `is_calendar_year_end()`, `is_fiscal_year_start()`, `is_fiscal_year_end()`
 
-#### Federal Holiday
+#### ![Federal Holiday](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/)
 
 - `holidays() -> dict` — holiday map with `actual` and `observed` dates within the FY window  
 - `is_holiday(date, use_observed=True) -> bool`  
