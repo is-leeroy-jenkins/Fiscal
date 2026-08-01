@@ -433,7 +433,9 @@ class FiscalYear( DB ):
 			'fiscal_month_number', 'fiscal_days_elapsed', 'fiscal_days_remaining',
 			'fiscal_months_elapsed', 'fiscal_months_remaining', 'fiscal_percent_elapsed',
 			'fiscal_days_in_year', 'fiscal_month_bounds', 'fiscal_days_in_month',
-			'fiscal_month_calendar', 'fiscal_month_weeks', 'fiscal_month_name',
+			'fiscal_month_calendar', 'fiscal_month_weeks', 'fiscal_month_text_calendar',
+			'fiscal_year_text_calendar', 'date_range_text_calendar', 'fiscal_month_html_calendar',
+			'fiscal_year_html_calendar', 'date_range_html_calendar', 'fiscal_month_name',
 			'fiscal_quarter_number', 'fiscal_quarter_bounds', 'fiscal_days_in_quarter',
 			'fiscal_week_number', 'fiscal_week_bounds', 'fiscal_dates', 'fiscal_weekdays',
 			'fiscal_weekends', 'fiscal_workdays', 'fiscal_calendar', 'weekdays_in_month',
@@ -1054,6 +1056,219 @@ class FiscalYear( DB ):
 			ex.module = 'fiscal'
 			ex.cause = 'FiscalYear'
 			ex.method = 'fiscal_month_weeks( self, fiscal_month: int ) -> List[ List[ int ] ]'
+			raise ex
+	
+	def fiscal_month_text_calendar( self, fiscal_month: int ) -> str:
+		"""Return a plain-text calendar for a federal fiscal month.
+
+		Purpose:
+			Renders the selected federal fiscal month using ``calendar.TextCalendar`` with Monday
+			as the first weekday.
+
+		Args:
+			fiscal_month (int): Federal fiscal-month number from 1 through 12.
+
+		Returns:
+			str: Plain-text calendar for the selected fiscal month.
+
+		Raises:
+			Error: The fiscal-month number is invalid or the text calendar cannot be rendered.
+		"""
+		try:
+			month_start, _ = self.fiscal_month_bounds( fiscal_month )
+			text_calendar = calendar.TextCalendar( firstweekday=calendar.MONDAY )
+			return text_calendar.formatmonth( month_start.year, month_start.month )
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_month_text_calendar( self, fiscal_month: int ) -> str'
+			raise ex
+	
+	def fiscal_year_text_calendar( self ) -> str:
+		"""Return a plain-text calendar for the represented federal fiscal year.
+
+		Purpose:
+			Renders October through September using ``calendar.TextCalendar`` while preserving
+			federal fiscal-month order.
+
+		Returns:
+			str: Plain-text calendars for all twelve federal fiscal months.
+
+		Raises:
+			Error: A fiscal-month boundary is unavailable or the text calendar cannot be rendered.
+		"""
+		try:
+			return '\n'.join(
+				self.fiscal_month_text_calendar( fiscal_month ).rstrip( ) for fiscal_month in
+				range( 1, 13 ) ) + '\n'
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_year_text_calendar( self ) -> str'
+			raise ex
+	
+	def fiscal_month_html_calendar( self, fiscal_month: int, with_year: bool = True ) -> str:
+		"""Return an HTML table for a federal fiscal month.
+
+		Purpose:
+			Renders the selected federal fiscal month using ``calendar.HTMLCalendar`` with Monday
+			as the first weekday.
+
+		Args:
+			fiscal_month (int): Federal fiscal-month number from 1 through 12.
+			with_year (bool): Includes the calendar year in the month heading when ``True``.
+
+		Returns:
+			str: HTML calendar table for the selected fiscal month.
+
+		Raises:
+			Error: The fiscal-month number is invalid or the HTML calendar cannot be rendered.
+		"""
+		try:
+			month_start, _ = self.fiscal_month_bounds( fiscal_month )
+			html_calendar = calendar.HTMLCalendar( firstweekday=calendar.MONDAY )
+			return html_calendar.formatmonth( month_start.year, month_start.month,
+				withyear=with_year )
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = ('fiscal_month_html_calendar( self, fiscal_month: int, '
+			             'with_year: bool = True ) -> str')
+			raise ex
+	
+	def fiscal_year_html_calendar( self, width: int = 3 ) -> str:
+		"""Return HTML tables for the represented federal fiscal year.
+
+		Purpose:
+			Renders October through September in federal fiscal-month order using
+			``calendar.HTMLCalendar``. The tables are grouped into rows containing the requested
+			number of months.
+
+		Args:
+			width (int): Number of month tables placed in each HTML row.
+
+		Returns:
+			str: HTML table containing all twelve federal fiscal months.
+
+		Raises:
+			Error: ``width`` is invalid or the HTML calendar cannot be rendered.
+		"""
+		try:
+			throw_if( 'width', width )
+			if isinstance( width, bool ) or not isinstance( width, int ):
+				raise TypeError( 'Width must be an integer.' )
+			if width < 1 or width > 12:
+				raise ValueError( 'Width must be between 1 and 12.' )
+			month_tables = [ self.fiscal_month_html_calendar( fiscal_month ) for fiscal_month in
+				range( 1, 13 ) ]
+			rows = [ month_tables[ index:index + width ] for index in range( 0, 12, width ) ]
+			row_html = [ '<tr>' + ''.join( f'<td>{month}</td>' for month in row ) + '</tr>' for row
+				in rows ]
+			return '<table class="fiscal-year">' + ''.join( row_html ) + '</table>'
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_year_html_calendar( self, width: int = 3 ) -> str'
+			raise ex
+	
+	def date_range_text_calendar( self, start: date | datetime, end: date | datetime ) -> str:
+		"""Return plain-text calendars spanning an inclusive fiscal-year date range.
+
+		Purpose:
+			Renders every calendar month intersecting the supplied inclusive range using
+			``calendar.TextCalendar`` with Monday as the first weekday. The supplied range is
+			validated and constrained to the represented fiscal year.
+
+		Args:
+			start (date | datetime): Inclusive beginning date.
+			end (date | datetime): Inclusive ending date.
+
+		Returns:
+			str: Plain-text month calendars in chronological order.
+
+		Raises:
+			Error: The date range is invalid or the text calendars cannot be rendered.
+		"""
+		try:
+			range_start, range_end = self._fiscal_range( start, end )
+			text_calendar = calendar.TextCalendar( firstweekday=calendar.MONDAY )
+			calendar_year = range_start.year
+			calendar_month = range_start.month
+			calendars: List[ str ] = [ ]
+			while (calendar_year, calendar_month) <= (range_end.year, range_end.month):
+				calendars.append(
+					text_calendar.formatmonth( calendar_year, calendar_month ).rstrip( ) )
+				if calendar_month == 12:
+					calendar_year += 1
+					calendar_month = 1
+				else:
+					calendar_month += 1
+			return '\n'.join( calendars ) + '\n'
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = ('date_range_text_calendar( self, start: date | datetime, '
+			             'end: date | datetime ) -> str')
+			raise ex
+	
+	def date_range_html_calendar( self, start: date | datetime, end: date | datetime,
+		width: int = 3, with_year: bool = True ) -> str:
+		"""Return HTML month tables spanning an inclusive fiscal-year date range.
+
+		Purpose:
+			Renders every calendar month intersecting the supplied inclusive range using
+			``calendar.HTMLCalendar`` with Monday as the first weekday. The supplied range is
+			validated and constrained to the represented fiscal year. Month tables are grouped into
+			rows containing the requested number of months.
+
+		Args:
+			start (date | datetime): Inclusive beginning date.
+			end (date | datetime): Inclusive ending date.
+			width (int): Number of month tables placed in each HTML row.
+			with_year (bool): Includes the calendar year in each month heading when ``True``.
+
+		Returns:
+			str: HTML table containing the rendered month calendars in chronological order.
+
+		Raises:
+			Error: The date range or width is invalid, or the HTML calendars cannot be rendered.
+		"""
+		try:
+			throw_if( 'width', width )
+			if isinstance( width, bool ) or not isinstance( width, int ):
+				raise TypeError( 'Width must be an integer.' )
+			if width < 1 or width > 12:
+				raise ValueError( 'Width must be between 1 and 12.' )
+			range_start, range_end = self._fiscal_range( start, end )
+			html_calendar = calendar.HTMLCalendar( firstweekday=calendar.MONDAY )
+			calendar_year = range_start.year
+			calendar_month = range_start.month
+			month_tables: List[ str ] = [ ]
+			while (calendar_year, calendar_month) <= (range_end.year, range_end.month):
+				month_tables.append(
+					html_calendar.formatmonth( calendar_year, calendar_month, withyear=with_year
+					) )
+				if calendar_month == 12:
+					calendar_year += 1
+					calendar_month = 1
+				else:
+					calendar_month += 1
+			rows = [ month_tables[ index:index + width ] for index in
+				range( 0, len( month_tables ), width ) ]
+			row_html = [ '<tr>' + ''.join( f'<td>{month}</td>' for month in row ) + '</tr>' for row
+				in rows ]
+			return '<table class="fiscal-date-range">' + ''.join( row_html ) + '</table>'
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = ('date_range_html_calendar( self, start: date | datetime, '
+			             'end: date | datetime, width: int = 3, with_year: bool = True ) -> str')
 			raise ex
 	
 	def fiscal_quarter_number( self ) -> int:
@@ -2078,9 +2293,10 @@ class FederalHoliday( DB ):
 		Raises:
 			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return { 'FiscalYear': self.fiscal_year, 'ColumbusDay': self.columbus_day,
-				'VeteransDay': self.veterans_day, 'ThanksgivingDay': self.thanksgiving_day,
-				'ChristmasDay': self.christmas_day, 'NewYearsDay': self.new_years_day,
+			return { 'ID': self.id, 'FiscalYear': self.fiscal_year,
+				'ColumbusDay': self.columbus_day, 'VeteransDay': self.veterans_day,
+				'ThanksgivingDay': self.thanksgiving_day, 'ChristmasDay': self.christmas_day,
+				'NewYearsDay': self.new_years_day,
 				'MartinLutherKingDay': self.martin_luther_king_day,
 				'PresidentsDay': self.presidents_day, 'MemorialDay': self.memorial_day,
 				'JuneteenthDay': self.juneteenth_day, 'IndependenceDay': self.independence_day,
