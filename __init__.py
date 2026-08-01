@@ -1,6 +1,6 @@
 '''
     ******************************************************************************************
-      Assembly:                Fiscal 
+      Assembly:                Fiscal
       Filename:                __init__.py
       Author:                  Terry D. Eppler
       Created:                 08-26-2025
@@ -40,980 +40,1183 @@
     </summary>
     ******************************************************************************************
 '''
-from __future__ import annotations
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Tuple, Optional
-import calendar
-from boogr import Error
-import config as cfg
-import numpy as np
-import pandas as pd
-import sqlite3
 
+from __future__ import annotations
+import sqlite3
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import pandas as pd
+import config as cfg
+from boogr import Error
+
+__all__: tuple[ str, ... ] = ('DB', 'FederalHoliday', 'FiscalYear', 'throw_if', 'to_date',)
 
 def throw_if( name: str, value: object ) -> None:
-	"""Throw if.
-    
-        Purpose:
-            Provides the throw if helper used by the Gipity Streamlit application. The function
-            supports UI state management, provider coordination, data normalization, or display
-            behavior required by the surrounding workflow.
-    
-        Args:
-            name (str): Value supplied to the helper.
-            value (object): Value supplied to the helper.
-    
-        Raises:
-            Error: Re-raised after the exception is wrapped and written to the application logger.
-    """
+	"""Validate a required argument.
+
+	Purpose:
+		Raises ``ValueError`` when a required argument is ``None``, an empty string, or an empty
+		collection.
+
+	Args:
+		name (str): Name of the argument being validated.
+		value (object): Argument value to validate.
+
+	Returns:
+		None: Validation does not return a value.
+
+	Raises:
+		ValueError: The supplied value is empty.
+	"""
 	if value is None:
 		raise ValueError( f'Argument "{name}" cannot be empty!' )
-	if isinstance( value, str ) and (not value.strip( )):
+	if isinstance( value, str ) and not value.strip( ):
 		raise ValueError( f'Argument "{name}" cannot be empty!' )
 	if isinstance( value, (list, tuple, dict, set) ) and len( value ) == 0:
 		raise ValueError( f'Argument "{name}" cannot be empty!' )
 
-def to_date( value: date ) -> date:
-	"""Convert a supported value to a date.
-	
+def to_date( value: date | datetime | str | None ) -> Optional[ date ]:
+	"""Convert a supported value to ``datetime.date``.
+
 	Purpose:
-	    Normalizes a date-like value to ``datetime.date``. A ``None`` value resolves to the
-	    current date.
-	
+		Converts date objects, datetime objects, ISO date text, and month/day/year text into a
+		``datetime.date`` value. Database sentinel values resolve to ``None``.
+
 	Args:
-	    value (date): Date-like value to normalize.
-	
+		value (date | datetime | str | None): Value to convert.
+
 	Returns:
-	    date: Normalized calendar date.
+		date | None: Converted date or ``None`` for a database sentinel value.
+
+	Raises:
+		ValueError: The supplied text cannot be parsed as a supported date.
+		TypeError: The supplied value is not a supported date type.
 	"""
 	if value is None:
-		return date.today( )
+		return None
 	if isinstance( value, datetime ):
 		return value.date( )
 	if isinstance( value, date ):
 		return value
+	if isinstance( value, str ):
+		text = value.strip( )
+		if text.upper( ) in ('', 'NS', 'N/A', 'NA', 'NONE', 'NULL'):
+			return None
+		for date_format in ('%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y'):
+			try:
+				return datetime.strptime( text, date_format ).date( )
+			except ValueError:
+				continue
+		raise ValueError( f'Unsupported date text: {text}' )
+	raise TypeError( f'Unsupported date value: {type( value ).__name__}' )
 
-def create_connection( ) -> sqlite3.Connection:
-	"""Create a connection to the configured SQLite database.
+class DB( ):
+	"""SQLite data-access base class.
 
 	Purpose:
-	    Opens a new SQLite connection using the database path defined by the application
-	    configuration.
+		Provides the configured SQLite database path, approved table names, active table selection,
+		query state, database connection creation, and parameterized retrieval operations used by the
+		fiscal-year domain entities.
 
-	Returns:
-	    sqlite3.Connection: Open SQLite database connection.
-	"""
-	return sqlite3.connect( cfg.DB_PATH )
-
-class BFY( ):
-	'''Base class for the Fiscal Year class
-	
-	Purpose:
-	    Encapsulates fiscal-year functions. The class derives fiscal-year identifiers
-	    and boundaries, calendar-year boundaries, elapsed and
-	    remaining periods, completion percentages, workday counts, weekend counts, and holiday
-	    checks.
-	
 	Attributes:
-		id (int) : The Fiscal Year rowid
-	    current_date (date | None): Input date used to initialize the instance.
-	    calendar_year (int | None): Calendar year containing the reference date.
-	    fiscal_year (str | None): Federal fiscal year containing the reference date.
-	
-	'''
+		path (str): Configured SQLite database path.
+		tables (List[str]): Configured database table names.
+		name (str): Active approved database table name.
+		data (pd.DataFrame | None): Most recent query result.
+		query_name (str): Table name assigned by the current query operation.
+		query_fy (str): Fiscal-year value assigned by the current query operation.
+		query_bpoa (str): Beginning period of availability assigned by a fiscal-year query.
+		query_epoa (str): Ending period of availability assigned by a fiscal-year query.
+		table_name (str): Candidate table name validated before query execution.
+		"""
+
 	path: Optional[ str ]
-	table: Optional[ str ]
+	tables: Optional[ List[ str ] ]
+	name: Optional[ str ]
 	data: Optional[ pd.DataFrame ]
-	connection: Optional[ sqlite3.Connection ]
 	
 	def __init__( self ) -> None:
-		"""Initialize fiscal-year data.
-		
+		"""Initialize database configuration.
+
 		Purpose:
-		    Initializes the instance of a dataframes.
-		
-		Args:
-		    path (str): The fiscal year.
-		    data (pd.DataFrame): The beginning period of availability
-		    connection (sqlite3.Connection): The ending period of availability
-		
+			Loads the SQLite database path and approved table names from ``config.py`` and initializes
+			the query-state members used by database operations.
+
 		Returns:
-		    None: Initialization does not return a value.
-		"""
+			None: Initialization does not return a value.
+
+		Raises:
+			AttributeError: Required configuration members are not defined.
+			TypeError: The configured table collection cannot be converted to a list."""
 		self.path = cfg.DB_PATH
-		
-class FiscalYear( ):
-	"""United States federal fiscal-year calculations.
+		self.tables = cfg.TABLES
 	
+	
+	def __dir__( self ) -> List[ str ]:
+		"""Return public database members.
+
+		Purpose:
+			Return public database members.
+
+		Returns:
+			List[str]: Value produced by the operation."""
+		return [ 'path', 'tables', 'name', 'data', 'create_connection',
+			'query_fiscal_year', 'query_federal_holiday' ]
+	
+	def create_connection( self ) -> sqlite3.Connection:
+		"""Create a SQLite database connection.
+
+		Purpose:
+			Opens the SQLite database configured by ``cfg.DB_PATH``.
+
+		Returns:
+			sqlite3.Connection: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			return sqlite3.connect( self.path )
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'DB'
+			ex.method = 'create_connection( self ) -> sqlite3.Connection'
+			raise ex
+	
+	def query_year( self, name: str, fy: str, bpoa: str, epoa: str ) -> pd.DataFrame:
+		"""Query one fiscal-year row.
+
+		Purpose:
+			Retrieves the ``BudgetFiscalYears`` row matching the supplied fiscal year and period
+			        of availability values.
+
+		Args:
+			name (str): Value used by the operation.
+			fy (str): Value used by the operation.
+			bpoa (str): Value used by the operation.
+			epoa (str): Value used by the operation.
+
+		Returns:
+			pd.DataFrame: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			throw_if( 'name', name )
+			throw_if( 'fy', fy )
+			throw_if( 'bpoa', bpoa )
+			throw_if( 'epoa', epoa )
+			self.name = name
+			if self.name not in self.tables:
+				raise ValueError( f'Unsupported table: {self.name}' )
+			sql = (f'SELECT * FROM "{self.name}" '
+			       'WHERE FiscalYear = ? AND BPOA = ? AND EPOA = ?;')
+			parameters = (fy, bpoa, epoa)
+			with self.create_connection( ) as connection:
+				self.data = pd.read_sql_query( sql, connection, params=parameters )
+			if len( self.data.index ) != 1:
+				raise LookupError(
+					f'Expected one {self.name} row; found {len( self.data.index )}.' )
+			return self.data.copy( )
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'DB'
+			ex.method = 'query_fiscal_year( self, **kwargs ) -> pd.DataFrame'
+			raise ex
+	
+	def query_holiday( self, name: str, fy: str ) -> pd.DataFrame:
+		"""Query one federal-holiday row.
+
+		Purpose:
+			Retrieves the ``FederalHolidays`` row matching the supplied fiscal year.
+
+		Args:
+			name (str): Value used by the operation.
+			fy (str): Value used by the operation.
+
+		Returns:
+			pd.DataFrame: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			throw_if( 'name', name )
+			throw_if( 'fy', fy )
+			self.name = name
+			if self.name not in self.tables:
+				raise ValueError( f'Unsupported table: {self.name}' )
+			sql = f'SELECT * FROM "{self.name}" WHERE FiscalYear = ?;'
+			parameters = (fy,)
+			with self.create_connection( ) as connection:
+				self.data = pd.read_sql_query( sql, connection, params=parameters )
+			if len( self.data.index ) != 1:
+				raise LookupError( f'Expected one {self.name} row; found {len( self.data.index )}.' )
+			return self.data.copy( )
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'DB'
+			ex.method = 'query_federal_holiday( self, name: str, fy: str ) -> pd.DataFrame'
+			raise ex
+
+class FiscalYear( DB ):
+	"""Budget fiscal-year database entity.
+
 	Purpose:
-	    Encapsulates fiscal-year functions. The class derives fiscal-year identifiers
-	    and boundaries, calendar-year boundaries, elapsed and
-	    remaining periods, completion percentages, workday counts, weekend counts, and holiday
-	    checks.
-	
+		Maps one ``BudgetFiscalYears`` database row to typed properties and provides calendar-year,
+		fiscal-year, holiday, weekend, and workday calculations derived from that row and the current
+		calculation date.
+
 	Attributes:
-		id (int) : The Fiscal Year rowid
-	    current_date (date | None): Input date used to initialize the instance.
-	    calendar_year (int | None): Calendar year containing the reference date.
-	    fiscal_year (str | None): Federal fiscal year containing the reference date.
-	    bpoa (str | None): Beginning period of availability.
-	    epoa (str | None): Ending period of avialability.
-	    start_date (datetime | None): First day of the fiscal year.
-	    end_date (datetime | None): Last day of the fiscal year.
-	    expiration_date (datetime | None): First day of the federal fiscal year.
-	    cancellation_date (datetime | None): Last day of the federal fiscal year.
-	    weekends (int): The number of weekends in the fiscal year.
-	    weekdays (int): The number of days that are not weekends.
-	    workdays (int): The number of days that are not weekends or holidays.
-	    compensable_workdays (float): The maximum number of days worked.
-	    compensable_hours (float): The maximum number of hours worked.
-	"""
+		holidays (List[ Dict[ str str ] ]) - List of holidays for a iven fiscal year
+		range_start (date | None): Normalized start date assigned by range-counting methods.
+		range_end (date | None): Normalized end date assigned by range-counting methods.
+		use_observed (bool): Indicates whether observed holiday dates are used.
+		id (int): Read-only database row identifier.
+		fiscal_year (str): Read-only fiscal-year identifier.
+		bpoa (str): Read-only beginning period of availability.
+		epoa (str): Read-only ending period of availability.
+		start_date (date): Read-only fiscal-year start date.
+		end_date (date | None): Read-only fiscal-year end date.
+		expiration_date (date | None): Read-only appropriation expiration date.
+		cancellation_date (date | None): Read-only appropriation cancellation date.
+		weekdays (int): Read-only number of weekdays stored in the database row.
+		weekends (int): Read-only number of weekend days stored in the database row.
+		workdays (float): Read-only number of workdays stored in the database row.
+		compensable_days (float): Read-only number of compensable days.
+		compensable_workdays (float): Legacy read-only alias for ``compensable_days``.
+		compensable_hours (float): Read-only number of compensable hours.
+		type (str): Read-only appropriation type.
+		availability (str): Read-only appropriation availability description.
+		current_date (date): Read-only date used by calendar and fiscal calculations.
+		calendar_year (int): Read-only calendar year containing ``current_date``.
+		cy_start_date (date): Read-only first date of ``calendar_year``.
+		cy_end_date (date): Read-only final date of ``calendar_year``.
+		date (date): Read-only alias for ``current_date``.
+		"""
 	id: Optional[ int ]
-	current_date: Optional[ datetime ]
-	calendar_year: Optional[ int ]
 	fiscal_year: Optional[ str ]
 	bpoa: Optional[ str ]
 	epoa: Optional[ str ]
-	start_date: Optional[ datetime ]
-	end_date: Optional[ datetime ]
-	expiration_date: Optional[ datetime ]
-	cancellation_date: Optional[ datetime ]
-	weekends: Optional[ int ]
+	start_date: Optional[ date ]
+	end_date: Optional[ date ]
+	expiration_date: Optional[ date ]
+	cancellation_date: Optional[ date ]
 	weekdays: Optional[ int ]
+	weekends: Optional[ int ]
 	workdays: Optional[ float ]
-	compensable_workdays: Optional[ float ]
-	compensable_hours: Optional[ float ]
+	compensable_days: Optional[ float ]
+	compensable_workdays: Optional[ int ]
+	compensable_hours: Optional[ int ]
+	type: Optional[ str ]
+	availability: Optional[ str ]
+	current_date:  Optional[ date ]
+	calendar_year: Optional[ int ]
+	cy_start_date:  Optional[ date ]
+	cy_end_date:  Optional[ date ]
+	range_start:  Optional[ date ]
+	range_end:  Optional[ date ]
+	use_observed: Optional[ bool ]
 	
-	def __init__( self, year: str, bpoa: str=None, epoa: str=None ) -> None:
-		"""Initialize fiscal-year state.
-		
+	def __init__( self, fy: str, bpoa: str = '', epoa: str = '' ) -> None:
+		"""Initialize a budget fiscal-year entity.
+
 		Purpose:
-		    Initializes the instance from a reference datetime and derives its calendar-year and
-		    fiscal-year fields.
-		
+			Validates constructor input, assigns the query members, retrieves exactly one
+			``BudgetFiscalYears`` row, converts each database field, and initializes calendar state.
+
 		Args:
-		    year (str): The fiscal year.
-		    bpoa (str): The beginning period of availability
-		    epoa (str): The ending period of availability
-		
+			fy (str): Fiscal year used to retrieve the database row.
+			bpoa (str): Beginning period of availability. An empty value defaults to ``fy``.
+			epoa (str): Ending period of availability. An empty value defaults to ``fy``.
+
 		Returns:
-		    None: Initialization does not return a value.
-		"""
-		self.current_date = datetime( ).date( )
-		self.fiscal_year = year
-		self.calendar_year = datetime( ).year
-		self.bpoa = bpoa
-		self.epoa = epoa
-		self.start_date = None
-		self.end_date = None
-		self.expiration_date = None
-		self.cancellation_date = None
-		self.weekdays = 0
-		self.weekends = 0
-		self.workdays = 0.0
-		self.compensable_workdays = 0.0
-		self.compensable_hours = 0.0
-		
+			None: Initialization does not return a value.
+
+		Raises:
+			ValueError: ``fy`` is empty or a retrieved value cannot be converted.
+			Error: Table validation or database retrieval fails.
+			IndexError: The configured fiscal-year table is unavailable.
+			KeyError: A required database column is missing.
+			TypeError: A retrieved value has an unsupported type."""
+		super( ).__init__( )
+		self.fiscal_year = fy
+		self.bpoa = bpoa if bpoa else fy
+		self.epoa = epoa if epoa else fy
+		self.name = self.tables[ 0 ]
+		df = self.query_year( self.name, self.fiscal_year, self.bpoa, self.epoa, )
+		row = df.iloc[ 0 ]
+		self.id = int( row[ 'ID' ] )
+		self.fiscal_year = str( row[ 'FiscalYear' ] )
+		self.bpoa = str( row[ 'BPOA' ] )
+		self.epoa = str( row[ 'EPOA' ] )
+		self.start_date = to_date( row[ 'StartDate' ] )
+		self.end_date = to_date( row[ 'EndDate' ] )
+		self.expiration_date = to_date( row[ 'ExpirationDate' ] )
+		self.cancellation_date = to_date( row[ 'CancellationDate' ] )
+		self.weekdays = int( row[ 'Weekdays' ] )
+		self.weekends = int( row[ 'Weekends' ] )
+		self.workdays = float( row[ 'Workdays' ] )
+		self.compensable_days = float( row[ 'CompensableDays' ] )
+		self.compensable_hours = float( row[ 'CompensableHours' ] )
+		self.type = str( row[ 'Type' ] )
+		self.availability = str( row[ 'Availability' ] )
+		self.current_date = datetime.today( ).date( )
+		self.calendar_year = self.current_date.year
+		self.cy_start_date = date( self.calendar_year, 1, 1 )
+		self.cy_end_date = date( self.calendar_year, 12, 31 )
+	
+	
 	def __repr__( self ) -> str:
-		"""Return a diagnostic representation.
-		
+		"""Return the fiscal-year identifier.
+
 		Purpose:
-		    Produces a concise representation containing the reference date, calendar year, fiscal
-		    year, beginning fiscal year, and ending fiscal year.
-		
+			Return the fiscal-year identifier.
+
 		Returns:
-		    str: Human-readable fiscal-year summary.
-		"""
+			str: Value produced by the operation."""
 		return self.fiscal_year
+	
+	def __dir__( self ) -> List[ str ]:
+		"""Return public fiscal-year members.
+
+		Purpose:
+			Return public fiscal-year members.
+
+		Returns:
+			List[str]: Value produced by the operation."""
+		return [ 'id', 'fiscal_year', 'bpoa', 'epoa', 'start_date', 'end_date', 'expiration_date',
+			'cancellation_date', 'weekdays', 'weekends', 'workdays', 'compensable_days',
+			'compensable_workdays', 'compensable_hours', 'type', 'availability', 'current_date',
+			'calendar_year', 'cy_start_date', 'cy_end_date', 'calendar_day_of_year',
+			'calendar_days_elapsed', 'calendar_days_remaining',
+			'calendar_elapsed_months', 'calendar_remaining_months', 'calendar_percent_elapsed',
+			'fiscal_day_of_year', 'fiscal_month_number', 'fiscal_days_elapsed',
+			'fiscal_days_remaining', 'fiscal_months_elapsed', 'calendar_days_in_year',
+			'fiscal_months_remaining', 'fiscal_percent_elapsed', 'count_weekends',
+			'count_holidays', 'count_workdays', 'calendar_bounds', 'fiscal_bounds', 'is_fiscal_start_year',
+			'is_fiscal_end_year', 'is_calendar_start_year', 'is_calendar_end_date', 'to_dict' ]
+	
+	@property
+	def holidays( self ) -> List[ Dict[ str, str ] ]:
+		"""Return the FederalHolidays row as column-and-value mappings.
+	
+		Purpose:
+			Queries the ``FederalHolidays`` table for the fiscal year represented by this instance
+			and converts the matching row into a list of dictionaries. Each dictionary contains one
+			holiday name and its corresponding value.
+	
+		Returns:
+			List[Dict[str, str]]: Federal holiday column names and values for the current fiscal
+			year.
+				Each item contains ``ColumnName`` and ``ColumnValue`` keys.
+	
+		Raises:
+			Error: The FederalHolidays row cannot be queried or converted.
+		"""
+		try:
+			self.holiday_table_name = self.tables[ 1 ]
+			self.holiday_data = self.query_holiday( name=self.holiday_table_name, fy=self.fiscal_year )
+			self.holiday_row = self.holiday_data.iloc[ 0 ]
+			self.holiday_columns = [ column for column in self.holiday_data.columns if
+				column not in ('ID', 'FiscalYear') ]
+			
+			return [ { str( column ): ('' if pd.isna( self.holiday_row[ column ] ) else str(
+				self.holiday_row[ column ] )) } for column in self.holiday_columns ]
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'holidays( self ) -> List[ Dict[ str, str ] ]'
+			raise ex
+	
+	def calendar_day_of_year( self ) -> int:
+		"""Return the one-based calendar day-of-year index.
+
+		Purpose:
+			Return the one-based calendar day-of-year index.
+
+		Returns:
+			int: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			return (self.current_date - self.cy_start_date).days + 1
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_day_of_year( self ) -> int'
+			raise ex
 	
 	def calendar_days_elapsed( self ) -> int:
 		"""Return elapsed calendar-year days.
-		
+
 		Purpose:
-		    Calculates the number of completed days since the start of the calendar year.
-		
+			Return elapsed calendar-year days.
+
 		Returns:
-		    int: Number of elapsed calendar-year days.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The elapsed-day count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return max( 0, ( self.current_date - datetime( self.calendar_year, 1, 1 ) ).days )
+			return max( 0, (self.current_date - self.cy_start_date).days )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'calendar_days_elapsed( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_days_elapsed( self ) -> int'
+			raise ex
 	
 	def calendar_days_remaining( self ) -> int:
 		"""Return remaining calendar-year days.
-		
+
 		Purpose:
-		    Calculates the number of days after the reference date through the end of the calendar
-		    year.
-		
+			Return remaining calendar-year days.
+
 		Returns:
-		    int: Number of remaining calendar-year days.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The remaining-day count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return max( 0, ( datetime( self.calendar_year, 1, 1 ) - self.current_date ).days )
+			return max( 0, (self.cy_end_date - self.current_date).days )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'calendar_days_remaining( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_days_remaining( self ) -> int'
+			raise ex
 	
-	def calendar_elapsed_months( self ) -> int:
+	def calendar_months_elapsed( self ) -> int:
 		"""Return elapsed calendar-year months.
-		
+
 		Purpose:
-		    Calculates the number of completed months preceding the reference month in the calendar
-		    year.
-		
+			Return elapsed calendar-year months.
+
 		Returns:
-		    int: Number of elapsed calendar-year months from 0 through 11.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The elapsed-month count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return max( 0, self.date.month - 1 )
+			return self.current_date.month - 1
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'calendar_elapsed_months( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_elapsed_months( self ) -> int'
+			raise ex
 	
-	def calendar_remaining_months( self ) -> int:
+	def calendar_months_remaining( self ) -> int:
 		"""Return remaining calendar-year months.
-		
+
 		Purpose:
-		    Calculates the number of months following the reference month in the calendar year.
-		
+			Return remaining calendar-year months.
+
 		Returns:
-		    int: Number of remaining calendar-year months from 0 through 11.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The remaining-month count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return 12 - self.date.month
+			return 12 - self.current_date.month
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'calendar_remaining_months( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_remaining_months( self ) -> int'
+			raise ex
 	
 	def calendar_percent_elapsed( self ) -> float:
 		"""Return the elapsed calendar-year percentage.
-		
+
 		Purpose:
-		    Calculates the percentage of the calendar year completed before the reference date.
-		
+			Return the elapsed calendar-year percentage.
+
 		Returns:
-		    float: Elapsed calendar-year percentage from 0.0 through 100.0.
-		
+			float: Value produced by the operation.
+
 		Raises:
-		    Error: The elapsed percentage cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			completed = self.calendar_days_elapsed( )
-			total = self.calendar_days_in_year( )
-			return (completed / total) * 100.0
+			return (self.calendar_days_elapsed( ) / self.calendar_days_in_year( )) * 100.0
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'calendar_percent_elapsed( self ) -> float'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_percent_elapsed( self ) -> float'
+			raise ex
 	
 	def fiscal_day_of_year( self ) -> int:
-		"""Return the fiscal day-of-year index.
-		
+		"""Return the one-based fiscal day-of-year index.
+
 		Purpose:
-		    Calculates the one-based day number within the federal fiscal year.
-		
+			Return the one-based fiscal day-of-year index.
+
 		Returns:
-		    int: Fiscal day-of-year value from 1 through 366.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The fiscal day-of-year value cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return (self.current_date - self.start_date) + 1
+			return (self.current_date - self.start_date).days + 1
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_day_of_year( self ) -> int'
-			raise exception
-	
-	def fiscal_days_in_year( self ) -> int:
-		"""Return the number of days in the fiscal year.
-		
-		Purpose:
-		    Calculates the total length of the federal fiscal year containing the reference date.
-		
-		Returns:
-		    int: Total fiscal-year days, either 365 or 366.
-		
-		Raises:
-		    Error: The fiscal-year length cannot be calculated.
-		"""
-		try:
-			return (self.end_date - self.start_date).days + 1
-		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_days_in_year( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_day_of_year( self ) -> int'
+			raise ex
 	
 	def fiscal_month_number( self ) -> int:
-		"""Return the fiscal month number.
-		
+		"""Return the federal fiscal-month number.
+
 		Purpose:
-		    Converts the calendar month to its federal fiscal-month position, where October is
-		    month
-		    1 and September is month 12.
-		
+			Return the federal fiscal-month number.
+
 		Returns:
-		    int: Fiscal month number from 1 through 12.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The fiscal month number cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			m = self.date.month
-			return ((m - 10) % 12) + 1
+			return ((self.current_date.month - 10) % 12) + 1
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_month_number( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_month_number( self ) -> int'
+			raise ex
 	
 	def fiscal_days_elapsed( self ) -> int:
 		"""Return elapsed fiscal-year days.
-		
+
 		Purpose:
-		    Calculates the number of completed days since the start of the federal fiscal year.
-		
+			Return elapsed fiscal-year days.
+
 		Returns:
-		    int: Number of elapsed fiscal-year days.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The elapsed fiscal-day count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return max( 0, (self.date - self.start_date) )
+			return max( 0, (self.current_date - self.start_date).days )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_days_elapsed( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_days_elapsed( self ) -> int'
+			raise ex
 	
 	def fiscal_days_remaining( self ) -> int:
 		"""Return remaining fiscal-year days.
-		
+
 		Purpose:
-		    Calculates the number of days after the reference date through the end of the federal
-		    fiscal year.
-		
+			Return remaining fiscal-year days.
+
 		Returns:
-		    int: Number of remaining fiscal-year days.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The remaining fiscal-day count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return max( 0, (self.end_date - self.date).days )
+			throw_if( 'end_date', self.end_date )
+			return max( 0, (self.end_date - self.current_date).days )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_days_remaining( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_days_remaining( self ) -> int'
+			raise ex
 	
 	def fiscal_months_elapsed( self ) -> int:
 		"""Return elapsed fiscal-year months.
-		
+
 		Purpose:
-		    Calculates the number of completed months preceding the reference fiscal month.
-		
+			Return elapsed fiscal-year months.
+
 		Returns:
-		    int: Number of elapsed fiscal-year months from 0 through 11.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The elapsed fiscal-month count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
 			return self.fiscal_month_number( ) - 1
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_months_elapsed( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_months_elapsed( self ) -> int'
+			raise ex
 	
 	def fiscal_months_remaining( self ) -> int:
 		"""Return remaining fiscal-year months.
-		
+
 		Purpose:
-		    Calculates the number of months following the reference fiscal month.
-		
+			Return remaining fiscal-year months.
+
 		Returns:
-		    int: Number of remaining fiscal-year months from 0 through 11.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The remaining fiscal-month count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
 			return 12 - self.fiscal_month_number( )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_months_remaining( self ) -> int'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_months_remaining( self ) -> int'
+			raise ex
 	
 	def fiscal_percent_elapsed( self ) -> float:
 		"""Return the elapsed fiscal-year percentage.
-		
+
 		Purpose:
-		    Calculates the percentage of the federal fiscal year completed before the reference
-		    date.
-		
+			Return the elapsed fiscal-year percentage.
+
 		Returns:
-		    float: Elapsed fiscal-year percentage from 0.0 through 100.0.
-		
+			float: Value produced by the operation.
+
 		Raises:
-		    Error: The elapsed fiscal-year percentage cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			completed = self.fiscal_days_elapsed( )
-			total = self.fiscal_days_in_year( )
-			return (completed / total) * 100.0
+			return (self.fiscal_days_elapsed( ) / self.fiscal_days_in_year( )) * 100.0
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_percent_elapsed( self ) -> float'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_percent_elapsed( self ) -> float'
+			raise ex
 	
-	def count_weekends( self, start: datetime, end: datetime ) -> int:
+	def count_weekends( self, start: date | datetime, end: date | datetime ) -> int:
 		"""Count weekend days in an inclusive range.
-		
+
 		Purpose:
-		    Counts Saturdays and Sundays between the supplied start and end dates, including both
-		    endpoints.
-		
+			Count weekend days in an inclusive range.
+
 		Args:
-		    start (datetime): First date in the range.
-		    end (datetime): Last date in the range.
-		
+			start (date | datetime): Value used by the operation.
+			end (date | datetime): Value used by the operation.
+
 		Returns:
-		    int: Number of weekend days in the range, or 0 when ``start`` follows ``end``.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The weekend count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			s, e = to_date( start ), to_date( end )
-			if s > e:
+			throw_if( 'start', start )
+			throw_if( 'end', end )
+			self.range_start = to_date( start )
+			self.range_end = to_date( end )
+			if self.range_start > self.range_end:
 				return 0
 			count = 0
-			cur = s
-			while cur <= e:
-				if cur.weekday( ) >= 5:
+			current = self.range_start
+			while current <= self.range_end:
+				if current.weekday( ) >= 5:
 					count += 1
-				cur += timedelta( days=1 )
+				current += timedelta( days=1 )
 			return count
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'count_weekends(self, start, end)'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = ('count_weekends( self, start: date | datetime, end: date | datetime ) -> '
+			             'int')
+			raise ex
 	
-	def count_holidays( self, start: datetime, end: datetime, use_observed: bool = True ) -> int:
+	def calendar_days_in_year( self ) -> int:
+		try:
+			return ( self.cy_end_date - self.cy_start_date ).days + 1
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_days_in_year( self ) -> int'
+			raise ex
+	
+	def fiscal_days_in_year( self ) -> int:
+		try:
+			return ( self.end_date - self.start_date ).days + 1
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_days_in_year( self ) -> int'
+			raise ex
+	
+	def count_holidays( self, start: date | datetime, end: date | datetime,
+		use_observed: bool=True ) -> int:
 		"""Count federal holidays in an inclusive range.
-		
+
 		Purpose:
-		    Counts actual or observed federal holidays between the supplied start and end dates for
-		    the instance fiscal year.
-		
+			Count federal holidays in an inclusive range.
+
 		Args:
-		    start (datetime): First date in the range.
-		    end (datetime): Last date in the range.
-		    use_observed (bool): Whether to count observed dates instead of actual dates.
-		
+			start (date | datetime): Value used by the operation.
+			end (date | datetime): Value used by the operation.
+			use_observed (bool): Value used by the operation.
+
 		Returns:
-		    int: Number of qualifying federal holidays, or 0 when ``start`` follows ``end``.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The holiday count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			s, e = to_date( start ), to_date( end )
-			if s > e:
+			throw_if( 'start', start )
+			throw_if( 'end', end )
+			self.range_start = to_date( start )
+			self.range_end = to_date( end )
+			self.use_observed = use_observed
+			if self.range_start > self.range_end:
 				return 0
-			fh = FederalHoliday( self.fiscal_year )
-			hols = fh.holidays( )
-			key = 'observed' if use_observed else 'actual'
-			return sum( 1 for payload in hols.values( ) if s <= payload[ key ] <= e )
+			federal_holiday = FederalHoliday( self.fiscal_year )
+			key = 'observed' if self.use_observed else 'actual'
+			return sum( 1 for payload in federal_holiday.holidays( ).values( ) if
+			self.range_start <= payload[ key ] <= self.range_end )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'count_holidays(self, start, end)'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'count_holidays( self, **kwargs ) -> int'
+			raise ex
 	
-	def count_workdays( self, start: datetime, end: datetime, use_observed: bool = True ) -> int:
+	def count_workdays( self, start: date | datetime, end: date | datetime,
+		use_observed: bool=True ) -> int:
 		"""Count workdays in an inclusive range.
-		
+
 		Purpose:
-		    Counts Monday-through-Friday dates that are not federal holidays between the supplied
-		    start and end dates.
-		
+			Count workdays in an inclusive range.
+
 		Args:
-		    start (datetime): First date in the range.
-		    end (datetime): Last date in the range.
-		    use_observed (bool): Whether observed holiday dates are excluded instead of actual
-		    dates.
-		
+			start (date | datetime): Value used by the operation.
+			end (date | datetime): Value used by the operation.
+			use_observed (bool): Value used by the operation.
+
 		Returns:
-		    int: Number of workdays in the range, or 0 when ``start`` follows ``end``.
-		
+			int: Value produced by the operation.
+
 		Raises:
-		    Error: The workday count cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			s, e = to_date( start ), to_date( end )
-			if s > e:
+			throw_if( 'start', start )
+			throw_if( 'end', end )
+			self.range_start = to_date( start )
+			self.range_end = to_date( end )
+			self.use_observed = use_observed
+			if self.range_start > self.range_end:
 				return 0
-			fh = FederalHoliday( self.fiscal_year )
-			hols = fh.holidays( )
-			hset = { payload[ 'observed' if use_observed else 'actual' ] for payload in
-				hols.values( ) }
-			count, cur = 0, s
-			while cur <= e:
-				if cur.weekday( ) < 5 and cur not in hset:
+			federal_holiday = FederalHoliday( self.fiscal_year )
+			key = 'observed' if self.use_observed else 'actual'
+			holiday_dates = { payload[ key ] for payload in federal_holiday.holidays( ).values( ) }
+			count = 0
+			current = self.range_start
+			while current <= self.range_end:
+				if current.weekday( ) < 5 and current not in holiday_dates:
 					count += 1
-				cur += timedelta( days=1 )
+				current += timedelta( days=1 )
 			return count
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'count_workdays(self, start, end)'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'count_workdays( self, **kwargs ) -> int'
+			raise ex
 	
 	def calendar_bounds( self ) -> Tuple[ date, date ]:
 		"""Return calendar-year boundaries.
-		
+
 		Purpose:
-		    Provides the first and last dates of the calendar year containing the reference date.
-		
+			Return calendar-year boundaries.
+
 		Returns:
-		    Tuple[date, date]: Calendar-year start and end dates.
-		
+			Tuple[date, date]: Value produced by the operation.
+
 		Raises:
-		    Error: The calendar-year boundaries cannot be returned.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return (self.cy_start_date, self.cy_end_date)
+			return self.cy_start_date, self.cy_end_date
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = ''
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'calendar_bounds( self ) -> Tuple[ date, date ]'
+			raise ex
 	
 	def fiscal_bounds( self ) -> Tuple[ date, date ]:
 		"""Return fiscal-year boundaries.
-		
+
 		Purpose:
-		    Provides the first and last dates of the federal fiscal year containing the reference
-		    date.
-		
+			Return fiscal-year boundaries.
+
 		Returns:
-		    Tuple[date, date]: Fiscal-year start and end dates.
-		
+			Tuple[date, date]: Value produced by the operation.
+
 		Raises:
-		    Error: The fiscal-year boundaries cannot be returned.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
+			throw_if( 'end_date', self.end_date )
 			return self.start_date, self.end_date
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'fiscal_bounds( self ) -> Tuple[ date, date ]'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'fiscal_bounds( self ) -> Tuple[ date, date ]'
+			raise ex
 	
 	def is_fiscal_start_year( self ) -> bool:
-		"""Determine whether the date starts the fiscal year.
-		
+		"""Determine whether the current date starts the fiscal year.
+
 		Purpose:
-		    Tests whether the reference date is October 1, the first day of the federal fiscal
-		    year.
-		
+			Determine whether the current date starts the fiscal year.
+
 		Returns:
-		    bool: ``True`` when the reference date is the fiscal-year start; otherwise ``False``.
-		
+			bool: Value produced by the operation.
+
 		Raises:
-		    Error: The fiscal-year boundary test cannot be completed.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return self.date == self.start_date
+			return self.current_date.year == self.start_date.year
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = 'is_fiscal_start_year( self ) -> bool'
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'is_fiscal_start_year( self ) -> bool'
+			raise ex
 	
 	def is_fiscal_end_year( self ) -> bool:
-		"""Determine whether the date ends the fiscal year.
-		
+		"""Determine whether the current date ends the fiscal year.
+
 		Purpose:
-		    Tests whether the reference date is September 30, the final day of the federal fiscal
-		    year.
-		
+			Determine whether the current date ends the fiscal year.
+
 		Returns:
-		    bool: ``True`` when the reference date is the fiscal-year end; otherwise ``False``.
-		
+			bool: Value produced by the operation.
+
 		Raises:
-		    Error: The fiscal-year boundary test cannot be completed.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return self.date == self.end_date
+			return self.current_date.year == self.end_date.year
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = ''
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'is_fiscal_end_year( self ) -> bool'
+			raise ex
 	
 	def is_calendar_start_year( self ) -> bool:
-		"""Determine whether the date starts the calendar year.
-		
+		"""Determine whether the current date starts the calendar year.
+
 		Purpose:
-		    Tests whether the reference date is January 1.
-		
+			Determine whether the current date starts the calendar year.
+
 		Returns:
-		    bool: ``True`` when the reference date is the calendar-year start; otherwise ``False``.
-		
+			bool: Value produced by the operation.
+
 		Raises:
-		    Error: The calendar-year boundary test cannot be completed.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return self.date == self.cy_start_date
+			return self.current_date.year == self.cy_start_date.year
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = ''
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'is_calendar_start_year( self ) -> bool'
+			raise ex
 	
 	def is_calendar_end_date( self ) -> bool:
-		"""Determine whether the date ends the calendar year.
-		
+		"""Determine whether the current date ends the calendar year.
+
 		Purpose:
-		    Tests whether the reference date is December 31.
-		
+			Determine whether the current date ends the calendar year.
+
 		Returns:
-		    bool: ``True`` when the reference date is the calendar-year end; otherwise ``False``.
-		
+			bool: Value produced by the operation.
+
 		Raises:
-		    Error: The calendar-year boundary test cannot be completed.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return self.date == self.cy_end_date
+			return self.current_date == self.cy_end_date
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FiscalYear'
-			exception.method = ''
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'is_calendar_end_date( self ) -> bool'
+			raise ex
 	
 	def to_dict( self ) -> Dict[ str, object ]:
-		"""Return the fiscal-year state as a dictionary.
-		
-		Purpose:
-		    Exports the reference date, fiscal-year identifiers, and calendar and fiscal
-		    boundaries as
-		    a structured mapping.
-		
-		Returns:
-		    Dict[str, object]: Mapping containing the current fiscal-year and calendar-year state.
-		"""
-		return { 'date': self.date, 'calendar_year': self.calendar_year,
-			'fiscal_year': self.fiscal_year, 'beginning_fiscal_year': self.bpoa,
-			'ending_fiscal_year': self.epoa, 'cy_start_date': self.cy_start_date,
-			'cy_end_date': self.cy_end_date, 'fy_start_date': self.start_date,
-			'fy_end_date': self.end_date, }
+		"""Return the mapped fiscal-year row as a dictionary.
 
-class FederalHoliday( ):
-	"""United States federal holidays for a fiscal year.
-	
+		Purpose:
+			Return the mapped fiscal-year row as a dictionary.
+
+		Returns:
+			Dict[str, object]: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			return \
+			{
+				'FiscalYear': self.fiscal_year, 'BPOA': self.bpoa,
+				'EPOA': self.epoa, 'StartDate': self.start_date, 'EndDate': self.end_date,
+				'ExpirationDate': self.expiration_date, 'CancellationDate': self.cancellation_date,
+				'Weekdays': self.weekdays, 'Weekends': self.weekends, 'Workdays': self.workdays,
+				'CompensableDays': self.compensable_days, 'CompensableHours': self.compensable_hours,
+				'Type': self.type, 'Availability': self.availability,
+			}
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = 'to_dict( self ) -> Dict[ str, object ]'
+			raise ex
+
+class FederalHoliday( DB ):
+	"""Federal-holiday database entity.
+
 	Purpose:
-	    Calculates actual and observed federal holiday dates whose observed dates fall within a
-	    specified federal fiscal year.
-	
+		Maps one ``FederalHolidays`` database row to typed properties and provides actual-date,
+		observed-date, holiday-membership, weekend, and dictionary-export operations.
+
 	Attributes:
-	    fiscal_year (int): Fiscal year identified by its ending calendar year.
-	    fy_start_date (date): First day of the fiscal year.
-	    fy_end_date (date): Last day of the fiscal year.
-	    holidays (Dict[str, Dict[str, date]]): Holiday names mapped to actual and observed dates.
-	"""
-	fiscal_year: int
-	fy_start_date: date
-	fy_end_date: date
-	holidays: Dict[ str, Dict[ str, date ] ]
+		input_fiscal_year (str): Fiscal year supplied to the constructor.
+		actual_date (date): Holiday date assigned by ``observed_date``.
+		when (date | None): Normalized date assigned by holiday and weekend tests.
+		use_observed (bool): Indicates whether holiday tests use observed dates.
+		id (int): Read-only database row identifier.
+		fiscal_year (str): Read-only fiscal-year identifier.
+		columbus_day (date): Read-only Columbus Day date.
+		veterans_day (date): Read-only Veterans Day date.
+		thanksgiving_day (date): Read-only Thanksgiving Day date.
+		christmas_day (date): Read-only Christmas Day date.
+		new_years_day (date): Read-only New Year's Day date.
+		martin_luther_king_day (date): Read-only Martin Luther King Jr. Day date.
+		presidents_day (date): Read-only Presidents Day date.
+		memorial_day (date): Read-only Memorial Day date.
+		juneteenth_day (date): Read-only Juneteenth National Independence Day date.
+		independence_day (date): Read-only Independence Day date.
+		labor_day (date): Read-only Labor Day date.
+		"""
+
+	id: int
+	fiscal_year: str
+	columbus_day: date
+	veterans_day: date
+	thanksgiving_day: date
+	christmas_day: date
+	new_years_day: date
+	martin_luther_king_day: date
+	presidents_day: date
+	memorial_day: date
+	juneteenth_day: date
+	independence_day: date
+	labor_day: date
+	input_fiscal_year: str
+	actual_date: date
+	when: date
+	use_observed: bool
 	
-	def __init__( self, fiscal_year: int ) -> None:
-		"""Initialize federal-holiday calculations.
-		
+	def __init__( self, fiscal_year: str ) -> None:
+		"""Initialize a federal-holiday entity.
+
 		Purpose:
-		    Initializes the fiscal-year boundaries used to calculate federal holidays.
-		
+			Validates the fiscal year, assigns query state, retrieves exactly one ``FederalHolidays`` row,
+			and maps each database column to its typed storage member.
+
 		Args:
-		    fiscal_year (int): Fiscal year identified by its ending calendar year.
-		
+			fiscal_year (str): Fiscal year whose federal-holiday row is loaded.
+
 		Returns:
-		    None: Initialization does not return a value.
-		"""
-		self.fiscal_year = int( fiscal_year )
-		self.fy_start_date = date( self.fiscal_year - 1, 10, 1 )
-		self.fy_end_date = date( self.fiscal_year, 9, 30 )
+			None: Initialization does not return a value.
+
+		Raises:
+			ValueError: ``fiscal_year`` is empty or a retrieved value cannot be converted.
+			Error: Table validation or database retrieval fails.
+			IndexError: The configured federal-holiday table is unavailable.
+			KeyError: A required database column is missing.
+			TypeError: A retrieved value has an unsupported type."""
+		super( ).__init__( )
+		throw_if( 'fiscal_year', fiscal_year )
+		self.input_fiscal_year = fiscal_year
+		self.name = self.tables[ 1 ]
+		df = self.query_holiday( self.name, self.input_fiscal_year )
+		row = df.iloc[ 0 ]
+		self.id = int( row[ 'ID' ] )
+		self.fiscal_year = str( row[ 'FiscalYear' ] )
+		self.columbus_day = to_date( row[ 'ColumbusDay' ] )
+		self.veterans_day = to_date( row[ 'VeteransDay' ] )
+		self.thanksgiving_day = to_date( row[ 'ThanksgivingDay' ] )
+		self.christmas_day = to_date( row[ 'ChristmasDay' ] )
+		self.new_years_day = to_date( row[ 'NewYearsDay' ] )
+		self.martin_luther_king_day = to_date( row[ 'MartinLutherKingDay' ] )
+		self.presidents_day = to_date( row[ 'PresidentsDay' ] )
+		self.memorial_day = to_date( row[ 'MemorialDay' ] )
+		self.juneteenth_day = to_date( row[ 'JuneteenthDay' ] )
+		self.independence_day = to_date( row[ 'IndependenceDay' ] )
+		self.labor_day = to_date( row[ 'LaborDay' ] )
 	
-	def _observed_date( self, d: date ) -> date | None:
-		"""Return the observed holiday date.
-		
+	
+	def __repr__( self ) -> str:
+		"""Return the fiscal-year identifier.
+
 		Purpose:
-		    Moves a Saturday holiday to the preceding Friday and a Sunday holiday to the following
-		    Monday. Weekday holidays retain their actual date.
-		
+			Return the fiscal-year identifier.
+
+		Returns:
+			str: Value produced by the operation."""
+		return self.fiscal_year
+	
+	def __dir__( self ) -> List[ str ]:
+		"""Return public federal-holiday members.
+
+		Purpose:
+			Return public federal-holiday members.
+
+		Returns:
+			List[str]: Value produced by the operation."""
+		return [ 'id', 'fiscal_year', 'columbus_day', 'veterans_day', 'thanksgiving_day',
+			'christmas_day', 'new_years_day', 'martin_luther_king_day', 'presidents_day',
+			'memorial_day', 'juneteenth_day', 'independence_day', 'labor_day', 'observed_date',
+			'holidays', 'is_holiday', 'is_weekend', 'to_dict' ]
+	
+	def observed_date( self, value: date ) -> date:
+		"""Return the observed date for a holiday.
+
+		Purpose:
+			Return the observed date for a holiday.
+
 		Args:
-		    d (date): Actual holiday date.
-		
+			value (date): Value used by the operation.
+
 		Returns:
-		    date | None: Observed holiday date.
-		
+			date: Value produced by the operation.
+
 		Raises:
-		    Error: The observed date cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			if d.weekday( ) == 5:
-				return d - timedelta( days=1 )
-			if d.weekday( ) == 6:
-				return d + timedelta( days=1 )
-			return d
+			throw_if( 'value', value )
+			self.actual_date = value
+			if self.actual_date.weekday( ) == 5:
+				return self.actual_date - timedelta( days=1 )
+			if self.actual_date.weekday( ) == 6:
+				return self.actual_date + timedelta( days=1 )
+			return self.actual_date
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = ''
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FederalHoliday'
+			ex.method = 'observed_date( self, value: date ) -> date'
+			raise ex
 	
-	def _nth_weekday_of_month( self, year: int, month: int, weekday: int, n: int ) -> date | None:
-		"""Return the nth weekday of a month.
-		
+	def holidays( self ) -> Dict[ str, Dict[ str, date ] ]:
+		"""Return actual and observed federal-holiday dates.
+
 		Purpose:
-		    Calculates a specified occurrence of a weekday within a calendar month.
-		
-		Args:
-		    year (int): Calendar year.
-		    month (int): Calendar month from 1 through 12.
-		    weekday (int): Weekday index from 0 for Monday through 6 for Sunday.
-		    n (int): One-based weekday occurrence within the month.
-		
+			Return actual and observed federal-holiday dates.
+
 		Returns:
-		    date | None: Date of the requested weekday occurrence.
-		
+			Dict[str, Dict[str, date]]: Value produced by the operation.
+
 		Raises:
-		    Error: The requested weekday occurrence cannot be calculated.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			cal = calendar.Calendar( )
-			matches = [ d for d in cal.itermonthdates( year, month ) if
-				d.month == month and d.weekday( ) == weekday ]
-			return matches[ n - 1 ]
+			actual_dates = { 'Columbus Day': self.columbus_day, 'Veterans Day': self.veterans_day,
+				'Thanksgiving Day': self.thanksgiving_day, 'Christmas Day': self.christmas_day,
+				"New Year's Day": self.new_years_day,
+				'Birthday of Martin Luther King, Jr.': self.martin_luther_king_day,
+				"Washington's Birthday": self.presidents_day, 'Memorial Day': self.memorial_day,
+				'Juneteenth National Independence Day': self.juneteenth_day,
+				'Independence Day': self.independence_day, 'Labor Day': self.labor_day, }
+			return { name: { 'actual': actual, 'observed': self.observed_date( actual ) } for
+				name, actual in actual_dates.items( ) }
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = ''
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FederalHoliday'
+			ex.method = 'holidays( self ) -> Dict[ str, Dict[ str, date ] ]'
+			raise ex
 	
-	def _last_weekday_of_month( self, year: int, month: int, weekday: int ) -> date | None:
-		"""Return the final weekday of a month.
-		
-		Purpose:
-		    Calculates the last occurrence of a specified weekday within a calendar month.
-		
-		Args:
-		    year (int): Calendar year.
-		    month (int): Calendar month from 1 through 12.
-		    weekday (int): Weekday index from 0 for Monday through 6 for Sunday.
-		
-		Returns:
-		    date | None: Date of the final requested weekday.
-		
-		Raises:
-		    Error: The final weekday occurrence cannot be calculated.
-		"""
-		try:
-			cal = calendar.Calendar( )
-			matches = [ d for d in cal.itermonthdates( year, month ) if
-				d.month == month and d.weekday( ) == weekday ]
-			return matches[ -1 ]
-		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = ''
-			raise exception
-	
-	def _add_holiday( self, hols: Dict[ str, Dict[ str, date ] ], name: str, actual: date ) -> \
-			None:
-		"""Add a holiday to a holiday mapping.
-		
-		Purpose:
-		    Adds the holiday when its observed date falls within the configured fiscal-year
-		    boundaries.
-		
-		Args:
-		    hols (Dict[str, Dict[str, date]]): Holiday mapping being constructed.
-		    name (str): Holiday name.
-		    actual (date): Actual holiday date.
-		
-		Returns:
-		    None: The method updates the supplied mapping and does not return a value.
-		
-		Raises:
-		    Error: The holiday cannot be added to the mapping.
-		"""
-		try:
-			obs = self._observed_date( actual )
-			if self.fy_start_date <= obs <= self.fy_end_date:
-				hols[ name ] = { 'actual': actual, 'observed': obs }
-		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = ''
-			raise exception
-	
-	def holidays( self ) -> Dict[ str, Dict[ str, date ] ] | None:
-		"""Return federal holidays for the fiscal year.
-		
-		Purpose:
-		    Calculates actual and observed dates for United States federal holidays whose observed
-		    dates fall between October 1 of the preceding calendar year and September 30 of the
-		    fiscal
-		    year.
-		
-		Returns:
-		    Dict[str, Dict[str, date]] | None: Holiday names mapped to ``actual`` and ``observed``
-		        dates.
-		
-		Raises:
-		    Error: The federal-holiday mapping cannot be calculated.
-		"""
-		try:
-			hols: Dict[ str, Dict[ str, date ] ] = { }
-			start = self.fy_start_date.year
-			end = self.fiscal_year
-			self._add_holiday( hols, r'Columbus Day',
-				self._nth_weekday_of_month( start, 10, calendar.MONDAY, 2 ) )
-			self._add_holiday( hols, r'Veterans Day', date( start, 11, 11 ) )
-			self._add_holiday( hols, r'Thanksgiving Day',
-				self._nth_weekday_of_month( start, 11, calendar.THURSDAY, 4 ) )
-			self._add_holiday( hols, r'Christmas Day', date( start, 12, 25 ) )
-			self._add_holiday( hols, r"New Year's Day", date( end, 1, 1 ) )
-			self._add_holiday( hols, r'Birthday of Martin Luther King, Jr.',
-				self._nth_weekday_of_month( end, 1, calendar.MONDAY, 3 ) )
-			self._add_holiday( hols, r"Washington's Birthday",
-				self._nth_weekday_of_month( end, 2, calendar.MONDAY, 3 ) )
-			self._add_holiday( hols, r'Memorial Day',
-				self._last_weekday_of_month( end, 5, calendar.MONDAY ) )
-			self._add_holiday( hols, r'Juneteenth National Independence Day', date( end, 6, 19 ) )
-			self._add_holiday( hols, r'Independence Day', date( end, 7, 4 ) )
-			self._add_holiday( hols, r'Labor Day',
-				self._nth_weekday_of_month( end, 9, calendar.MONDAY, 1 ) )
-			return hols
-		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = 'holidays( self ) -> Dict[ str, Dict[ str, date ] ]'
-			raise exception
-	
-	def is_holiday( self, when: datetime, observed: bool = True ) -> bool | None:
+	def is_holiday( self, when: date | datetime, observed: bool = True ) -> bool:
 		"""Determine whether a date is a federal holiday.
-		
+
 		Purpose:
-		    Tests the supplied date against the actual or observed federal holiday dates for the
-		    configured fiscal year.
-		
+			Determine whether a date is a federal holiday.
+
 		Args:
-		    when (datetime): Date to evaluate.
-		    observed (bool): Whether to compare against observed dates instead of actual dates.
-		
+			when (date | datetime): Value used by the operation.
+			observed (bool): Value used by the operation.
+
 		Returns:
-		    bool | None: ``True`` when the date is a holiday; otherwise ``False``.
-		
+			bool: Value produced by the operation.
+
 		Raises:
-		    Error: The holiday test cannot be completed.
-		"""
-		try:
-			d = to_date( when )
-			hols = self.holidays( )
-			if observed:
-				return any( d == payload[ 'observed' ] for payload in hols.values( ) )
-			return any( d == payload[ 'actual' ] for payload in hols.values( ) )
-		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = ('is_holiday( self, when: datetime, use_observed: bool=True ) -> '
-			                    'bool')
-			raise exception
-	
-	def is_weekend( self, when: datetime ) -> bool | None:
-		"""Determine whether a date falls on a weekend.
-		
-		Purpose:
-		    Tests whether the supplied date is Saturday or Sunday.
-		
-		Args:
-		    when (datetime): Date to evaluate.
-		
-		Returns:
-		    bool | None: ``True`` for Saturday or Sunday; otherwise ``False``.
-		
-		Raises:
-		    Error: The weekend test cannot be completed.
-		"""
+			Error: The operation fails and the underlying exception is wrapped."""
 		try:
 			throw_if( 'when', when )
-			d = to_date( when )
-			return d.weekday( ) >= 5
+			self.when = to_date( when )
+			self.use_observed = observed
+			key = 'observed' if self.use_observed else 'actual'
+			return any( self.when == payload[ key ] for payload in self.holidays( ).values( ) )
 		except Exception as e:
-			exception = Error( e )
-			exception.module = 'fiscal'
-			exception.cause = 'FederalHoliday'
-			exception.method = 'is_weekend( self, when: datetime ) -> bool '
-			raise exception
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FederalHoliday'
+			ex.method = 'is_holiday( self, when: date | datetime, observed: bool = True ) -> bool'
+			raise ex
+	
+	def is_weekend( self, when: date | datetime ) -> bool:
+		"""Determine whether a date falls on a weekend.
+
+		Purpose:
+			Determine whether a date falls on a weekend.
+
+		Args:
+			when (date | datetime): Value used by the operation.
+
+		Returns:
+			bool: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			throw_if( 'when', when )
+			self.when = to_date( when )
+			return self.when.weekday( ) >= 5
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FederalHoliday'
+			ex.method = 'is_weekend( self, when: date | datetime ) -> bool'
+			raise ex
+	
+	def to_dict( self ) -> Dict[ str, object ]:
+		"""Return the mapped federal-holiday row as a dictionary.
+
+		Purpose:
+			Return the mapped federal-holiday row as a dictionary.
+
+		Returns:
+			Dict[str, object]: Value produced by the operation.
+
+		Raises:
+			Error: The operation fails and the underlying exception is wrapped."""
+		try:
+			return { 'ID': self.id, 'FiscalYear': self.fiscal_year,
+				'ColumbusDay': self.columbus_day, 'VeteransDay': self.veterans_day,
+				'ThanksgivingDay': self.thanksgiving_day, 'ChristmasDay': self.christmas_day,
+				'NewYearsDay': self.new_years_day,
+				'MartinLutherKingDay': self.martin_luther_king_day,
+				'PresidentsDay': self.presidents_day, 'MemorialDay': self.memorial_day,
+				'JuneteenthDay': self.juneteenth_day, 'IndependenceDay': self.independence_day,
+				'LaborDay': self.labor_day, }
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FederalHoliday'
+			ex.method = 'to_dict( self ) -> Dict[ str, object ]'
+			raise ex
