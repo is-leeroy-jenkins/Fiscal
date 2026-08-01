@@ -18,6 +18,9 @@
 
 ___
 
+Fiscal is python framework to unify U.S. fiscal year (FY) and calendar year (CY) calculations, 
+including workdays, weekends, and official U.S. federal holidays
+
 <a id="features"></a>
 
 ## 📝 Features
