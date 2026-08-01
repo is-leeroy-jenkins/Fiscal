@@ -138,6 +138,7 @@ fy.is_fiscal_end_year()
 ### Range Utilities
 
 ```python
+
 start = date(2026, 7, 1)
 end = date(2026, 7, 31)
 
@@ -147,6 +148,7 @@ workday_count = fy.count_workdays(start, end)
 ```
 
 ```python
+
 holiday_count = fy.count_holidays(
     start,
     end,
@@ -163,15 +165,18 @@ workday_count = fy.count_workdays(
 ### Fiscal-Year Holiday Values
 
 ```python
+
 holiday_values = fy.holidays
 ```
 
 ```python
+
 [
     {"ColumbusDay": "10/13/2025"},
     {"VeteransDay": "11/11/2025"},
     {"ThanksgivingDay": "11/27/2025"},
 ]
+
 ```
 
 `ID` and `FiscalYear` are excluded. Null values are returned as empty strings.
@@ -179,6 +184,7 @@ holiday_values = fy.holidays
 ### Federal Holiday
 
 ```python
+
 holidays = FederalHoliday("2026")
 
 holidays.fiscal_year
@@ -196,20 +202,24 @@ holidays.labor_day
 ```
 
 ```python
+
 holiday_map = holidays.holidays()
 
 independence_day = holiday_map["Independence Day"]
 
 independence_day["actual"]
 independence_day["observed"]
+
 ```
 
 ```python
+
 holidays.is_holiday(date(2026, 7, 4))
 holidays.is_holiday(date(2026, 7, 3), observed=True)
 holidays.is_holiday(date(2026, 7, 4), observed=False)
 holidays.is_weekend(date(2026, 7, 4))
 holidays.observed_date(date(2026, 7, 4))
+
 ```
 
 - Saturday holiday: preceding Friday
@@ -219,8 +229,10 @@ holidays.observed_date(date(2026, 7, 4))
 ### Dictionary Exports
 
 ```python
+
 fiscal_record = fy.to_dict()
 holiday_record = holidays.to_dict()
+
 ```
 
 <a id="api-overview"></a>
@@ -228,57 +240,59 @@ holiday_record = holidays.to_dict()
 ## 🧠 API Overview
 
 ```python
+
 from tempus import DB, FederalHoliday, FiscalYear, throw_if, to_date
+
 ```
 
 ### `DB`
 
-| Member | Signature |
-|---|---|
-| [create_connection](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L166) | `create_connection() -> sqlite3.Connection` |
-| [query_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L186) | `query_year(name, fy, bpoa, epoa) -> pandas.DataFrame` |
-| [query_holiday](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L228) | `query_holiday(name, fy) -> pandas.DataFrame` |
+| Member                                                                                                                          | Signature                                              |
+|---------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| [create_connection](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L166) | `create_connection() -> sqlite3.Connection`            |
+| [query_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L186)        | `query_year(name, fy, bpoa, epoa) -> pandas.DataFrame` |
+| [query_holiday](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L228)     | `query_holiday(name, fy) -> pandas.DataFrame`          |
 
 ### `FiscalYear`
 
-| Member | Signature |
-|---|---|
-| [holidays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L401) | `holidays -> list[dict[str, str]]` |
-| [calendar_day_of_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L434) | `calendar_day_of_year() -> int` |
-| [calendar_days_in_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L732) | `calendar_days_in_year() -> int` |
-| [calendar_days_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L454) | `calendar_days_elapsed() -> int` |
-| [calendar_days_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L474) | `calendar_days_remaining() -> int` |
-| [calendar_months_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L494) | `calendar_months_elapsed() -> int` |
-| [calendar_months_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L514) | `calendar_months_remaining() -> int` |
-| [calendar_percent_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L534) | `calendar_percent_elapsed() -> float` |
-| [fiscal_day_of_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L554) | `fiscal_day_of_year() -> int` |
-| [fiscal_days_in_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L742) | `fiscal_days_in_year() -> int` |
-| [fiscal_month_number](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L574) | `fiscal_month_number() -> int` |
-| [fiscal_days_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L594) | `fiscal_days_elapsed() -> int` |
-| [fiscal_days_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L614) | `fiscal_days_remaining() -> int` |
-| [fiscal_months_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L635) | `fiscal_months_elapsed() -> int` |
-| [fiscal_months_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L655) | `fiscal_months_remaining() -> int` |
-| [fiscal_percent_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L675) | `fiscal_percent_elapsed() -> float` |
-| [count_weekends](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L695) | `count_weekends(start, end) -> int` |
-| [count_holidays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L752) | `count_holidays(start, end, use_observed=True) -> int` |
-| [count_workdays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L788) | `count_workdays(start, end, use_observed=True) -> int` |
-| [calendar_bounds](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L830) | `calendar_bounds() -> tuple[date, date]` |
-| [fiscal_bounds](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L850) | `fiscal_bounds() -> tuple[date, date]` |
-| [is_fiscal_start_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L871) | `is_fiscal_start_year() -> bool` |
-| [is_fiscal_end_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L891) | `is_fiscal_end_year() -> bool` |
-| [is_calendar_start_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L911) | `is_calendar_start_year() -> bool` |
-| [is_calendar_end_date](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L931) | `is_calendar_end_date() -> bool` |
-| [to_dict](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L951) | `to_dict() -> dict[str, object]` |
+| Member                                                                                                                                  | Signature                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| [holidays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L401)                  | `holidays -> list[dict[str, str]]`                     |
+| [calendar_day_of_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L434)      | `calendar_day_of_year() -> int`                        |
+| [calendar_days_in_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L732)     | `calendar_days_in_year() -> int`                       |
+| [calendar_days_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L454)     | `calendar_days_elapsed() -> int`                       |
+| [calendar_days_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L474)   | `calendar_days_remaining() -> int`                     |
+| [calendar_months_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L494)   | `calendar_months_elapsed() -> int`                     |
+| [calendar_months_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L514) | `calendar_months_remaining() -> int`                   |
+| [calendar_percent_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L534)  | `calendar_percent_elapsed() -> float`                  |
+| [fiscal_day_of_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L554)        | `fiscal_day_of_year() -> int`                          |
+| [fiscal_days_in_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L742)       | `fiscal_days_in_year() -> int`                         |
+| [fiscal_month_number](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L574)       | `fiscal_month_number() -> int`                         |
+| [fiscal_days_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L594)       | `fiscal_days_elapsed() -> int`                         |
+| [fiscal_days_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L614)     | `fiscal_days_remaining() -> int`                       |
+| [fiscal_months_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L635)     | `fiscal_months_elapsed() -> int`                       |
+| [fiscal_months_remaining](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L655)   | `fiscal_months_remaining() -> int`                     |
+| [fiscal_percent_elapsed](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L675)    | `fiscal_percent_elapsed() -> float`                    |
+| [count_weekends](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L695)            | `count_weekends(start, end) -> int`                    |
+| [count_holidays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L752)            | `count_holidays(start, end, use_observed=True) -> int` |
+| [count_workdays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L788)            | `count_workdays(start, end, use_observed=True) -> int` |
+| [calendar_bounds](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L830)           | `calendar_bounds() -> tuple[date, date]`               |
+| [fiscal_bounds](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L850)             | `fiscal_bounds() -> tuple[date, date]`                 |
+| [is_fiscal_start_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L871)      | `is_fiscal_start_year() -> bool`                       |
+| [is_fiscal_end_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L891)        | `is_fiscal_end_year() -> bool`                         |
+| [is_calendar_start_year](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L911)    | `is_calendar_start_year() -> bool`                     |
+| [is_calendar_end_date](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L931)      | `is_calendar_end_date() -> bool`                       |
+| [to_dict](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L951)                   | `to_dict() -> dict[str, object]`                       |
 
 ### `FederalHoliday`
 
-| Member | Signature |
-|---|---|
-| [observed_date](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1087) | `observed_date(value) -> date` |
-| [holidays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1116) | `holidays() -> dict[str, dict[str, date]]` |
-| [is_holiday](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1144) | `is_holiday(when, observed=True) -> bool` |
-| [is_weekend](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1172) | `is_weekend(when) -> bool` |
-| [to_dict](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1197) | `to_dict() -> dict[str, object]` |
+| Member                                                                                                                       | Signature                                  |
+|------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
+| [observed_date](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1087) | `observed_date(value) -> date`             |
+| [holidays](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1116)      | `holidays() -> dict[str, dict[str, date]]` |
+| [is_holiday](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1144)    | `is_holiday(when, observed=True) -> bool`  |
+| [is_weekend](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1172)    | `is_weekend(when) -> bool`                 |
+| [to_dict](https://github.com/is-leeroy-jenkins/Fiscal/blob/26dc5083256db526c41d50954b09660df776ad14/__init__.py#L1197)       | `to_dict() -> dict[str, object]`           |
 
 ### Utilities
 
