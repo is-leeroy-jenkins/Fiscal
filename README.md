@@ -1,6 +1,6 @@
 ###### fiscal
 
-![](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/images/github/project_tempus.png)
+![](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/images/github/project_fiscal.png)
 
 <p align="left">
   <a href="#features">Features</a>
@@ -36,12 +36,12 @@ ___
 ## 🏗️ Installation
 
 ```bash
-pip install tempus
+pip install fiscal
 ```
 
 ```toml
 [tool.poetry.dependencies]
-tempus = "^1.0.0"
+fiscal = "^1.0.0"
 ```
 
 ```bash
@@ -72,7 +72,7 @@ TABLES = [
 ```python
 from datetime import date
 
-from tempus import FederalHoliday, FiscalYear
+from fiscal import FederalHoliday, FiscalYear
 ```
 
 ### Fiscal Year Usage
@@ -318,6 +318,6 @@ from fiscal import DB, FederalHoliday, FiscalYear, throw_if, to_date
 
 <a id="license"></a>
 
-## 📜 [License](https://github.com/is-leeroy-jenkins/Tempus/blob/master/LICENSE.txt)
+## 📜 [License](https://github.com/is-leeroy-jenkins/fiscal/blob/master/LICENSE.txt)
 
 MIT © 2022 Terry D. Eppler
