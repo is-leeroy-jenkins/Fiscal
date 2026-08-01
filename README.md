@@ -92,7 +92,7 @@
 
 ## 🧠 API Overview
 
-#### ![Definitions](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md)
+#### [Definitions](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md)
 
 #### Fiscal Year 
 
