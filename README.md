@@ -13,9 +13,9 @@
   &nbsp;&bull;&nbsp;
   <a href="#api-overview">API Overview</a>
   &nbsp;&bull;&nbsp;
-  <a href="#api-overview">User Guide</a>
+  <a href="https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/USER_GUIDE.md">User Guide</a>
   &nbsp;&bull;&nbsp;
-  <a href="#api-overview">Developer Guide</a>
+  <a href="https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/DEVELOPER_GUIDE.md">Developer Guide</a>
   &nbsp;&bull;&nbsp;
   <a href="#license">License</a>
 </p>
