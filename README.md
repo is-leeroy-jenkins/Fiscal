@@ -107,7 +107,7 @@ ends September 30, 2011.
 - ranges: `count_weekends(start, end)`, `count_holidays(start, end)`, `count_workdays(start, end)`
 - bounds & checks: `calendar_bounds()`, `fiscal_bounds()`, `is_calendar_year_start()`, `is_calendar_year_end()`, `is_fiscal_year_start()`, `is_fiscal_year_end()`
 
-#### ![Federal Holiday](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/)
+#### [Federal Holiday](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/)
 
 - `holidays() -> dict` — holiday map with `actual` and `observed` dates within the FY window  
 - `is_holiday(date, use_observed=True) -> bool`  
