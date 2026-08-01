@@ -2,7 +2,7 @@
 
 ![](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/images/github/project_tempus.png)
 
-<p align="center">
+<p align="left">
   <a href="#features">Features</a>
   &nbsp;&bull;&nbsp;
   <a href="#installation">Installation</a>
