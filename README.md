@@ -20,7 +20,7 @@
   <a href="#license">License</a>
 </p>
 
-> Database-backed federal fiscal-year, calendar, workday, weekend, and holiday utilities for Python.
+___
 
 `tempus` maps configured SQLite records to typed Python objects for U.S. federal fiscal-year
 analysis. The package provides fiscal and calendar progress calculations, inclusive date-range
