@@ -6,7 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="c9b76275-5956-4338-b99f-71253c4218ca" name="Changes" comment="updates">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/DEVELOPER_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/resources/DEVELOPER_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources/USER_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/resources/USER_GUIDE.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -70,7 +72,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1785606909446</updated>
-      <workItem from="1785606909449" duration="10419000" />
+      <workItem from="1785606909449" duration="11270000" />
     </task>
     <task id="LOCAL-00001" summary="updates">
       <option name="closed" value="true" />
@@ -336,7 +338,23 @@
       <option name="project" value="LOCAL" />
       <updated>1785615320544</updated>
     </task>
-    <option name="localTasksCounter" value="34" />
+    <task id="LOCAL-00034" summary="updates">
+      <option name="closed" value="true" />
+      <created>1785620070911</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1785620070911</updated>
+    </task>
+    <task id="LOCAL-00035" summary="updates">
+      <option name="closed" value="true" />
+      <created>1785620269938</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1785620269938</updated>
+    </task>
+    <option name="localTasksCounter" value="36" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

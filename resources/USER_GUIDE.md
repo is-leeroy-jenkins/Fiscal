@@ -1,6 +1,8 @@
 # Fiscal User Guide
 
-Fiscal provides U.S. federal fiscal-year, calendar-year, federal-holiday, workday, and weekend calculations for Python applications and ad-hoc analysis.
+Fiscal provides fiscal-year, calendar-year, federal-holiday, workday, and weekend calculations for use in Python applications and ad-hoc analysis.
+
+This guide focuses on common user workflows. Database configuration, schemas, and internal query behavior are covered in the Developer Guide.
 
 ## Installation
 
@@ -8,7 +10,7 @@ Fiscal provides U.S. federal fiscal-year, calendar-year, federal-holiday, workda
 pip install fiscal
 ```
 
-## Import the Library
+## Import Fiscal
 
 ```python
 from datetime import date
@@ -16,293 +18,358 @@ from datetime import date
 from fiscal import FederalHoliday, FiscalYear
 ```
 
-## Determine the Status of a Fiscal Year
+## Analyze a Fiscal Year
+
+Create an object for the fiscal year being analyzed and supply a calculation date:
 
 ```python
-fy = FiscalYear( '2026' )
+fy = FiscalYear(
+    fy=2026,
+    current_date=date( 2026, 7, 15 ),
+)
+```
 
-status = \
-{
-    'FiscalYear': fy.fiscal_year,
-    'StartDate': fy.start_date,
-    'EndDate': fy.end_date,
-    'FiscalDay': fy.fiscal_day_of_year( ),
-    'FiscalWeek': fy.fiscal_week_number( ),
-    'FiscalMonth': fy.fiscal_month_number( ),
-    'FiscalQuarter': fy.fiscal_quarter_number( ),
-    'DaysElapsed': fy.fiscal_days_elapsed( ),
-    'DaysRemaining': fy.fiscal_days_remaining( ),
-    'PercentElapsed': round( fy.fiscal_percent_elapsed( ), 2 ),
+`current_date` controls all “current,” elapsed, remaining, month, quarter, and week calculations. When omitted, Fiscal uses the current system date.
+
+```python
+status = {
+    "FiscalYear": fy.fiscal_year,
+    "StartDate": fy.start_date,
+    "EndDate": fy.end_date,
+    "FiscalDay": fy.fiscal_day_of_year( ),
+    "FiscalWeek": fy.fiscal_week_number( ),
+    "FiscalMonth": fy.fiscal_month_number( ),
+    "FiscalQuarter": fy.fiscal_quarter_number( ),
+    "DaysElapsed": fy.fiscal_days_elapsed( ),
+    "DaysRemaining": fy.fiscal_days_remaining( ),
+    "PercentElapsed": round(
+        fy.fiscal_percent_elapsed( ),
+        2,
+    ),
 }
 
 for name, value in status.items( ):
-    print( f'{name}: {value}' )
+    print( f"{name}: {value}" )
 ```
 
-Use `to_dict( )` when the stored fiscal-year record is needed by another application:
+Use integer or string fiscal-year values:
+
+```python
+fy_text = FiscalYear( "2026" )
+fy_number = FiscalYear( 2026 )
+```
+
+Use BPOA and EPOA for a multi-year availability record:
+
+```python
+fy = FiscalYear(
+    fy=2026,
+    bpoa=2024,
+    epoa=2026,
+    current_date=date( 2026, 7, 15 ),
+)
+```
+
+## Inspect the Stored Fiscal Record
 
 ```python
 record = fy.to_dict( )
 
-print( record[ 'FiscalYear' ] )
-print( record[ 'Availability' ] )
-print( record[ 'Type' ] )
+print( record[ "FiscalYear" ] )
+print( record[ "BPOA" ] )
+print( record[ "EPOA" ] )
+print( record[ "Availability" ] )
+print( record[ "Type" ] )
+```
+
+The principal fiscal-year properties are also available directly:
+
+```python
+print( fy.start_date )
+print( fy.end_date )
+print( fy.expiration_date )
+print( fy.cancellation_date )
+print( fy.weekdays )
+print( fy.weekends )
+print( fy.workdays )
+print( fy.compensable_days )
+print( fy.compensable_workdays )
+print( fy.compensable_hours )
 ```
 
 ## Analyze a Date Range
+
+Fiscal range methods are inclusive and constrained to the represented fiscal year.
 
 ```python
 start_date = date( 2026, 7, 1 )
 end_date = date( 2026, 7, 31 )
 
-summary = \
-{
-    'StartDate': start_date,
-    'EndDate': end_date,
-    'WeekendDays': fy.count_weekends( start_date, end_date ),
-    'FederalHolidays': fy.count_holidays( start_date, end_date ),
-    'Workdays': fy.count_workdays( start_date, end_date ),
+summary = {
+    "WeekendDays": fy.count_weekends(
+        start=start_date,
+        end=end_date,
+    ),
+    "FederalHolidays": fy.count_holidays(
+        start=start_date,
+        end=end_date,
+    ),
+    "Workdays": fy.count_workdays(
+        start=start_date,
+        end=end_date,
+    ),
 }
 
 print( summary )
 ```
 
-Observed federal holidays are used by default. Use actual holiday dates when required:
+Observed federal holidays are used by default. Use actual dates when required:
 
 ```python
-actual_holidays = fy.count_holidays(
+actual_holiday_count = fy.count_holidays(
     start=start_date,
     end=end_date,
     use_observed=False,
 )
 
-actual_workdays = fy.count_workdays(
+actual_workday_count = fy.count_workdays(
     start=start_date,
     end=end_date,
     use_observed=False,
 )
 ```
 
-Return holiday names and dates for the range:
+A reversed range or a range that does not intersect the fiscal year raises `boogr.Error`.
+
+## Return Holidays in a Date Range
+
+Use `holiday_dates_between()` when an application needs native `date` values:
 
 ```python
-holidays = fy.holidays_between(
-    start=start_date,
-    end=end_date,
-    use_observed=True,
+holiday_dates = fy.holiday_dates_between(
+    start=date( 2026, 1, 1 ),
+    end=date( 2026, 9, 30 ),
 )
 
-for name, holiday_date in holidays.items( ):
-    print( f'{holiday_date}: {name}' )
+for name, holiday_date in holiday_dates.items( ):
+    print( f"{holiday_date}: {name}" )
 ```
 
-## Determine Remaining Fiscal-Year Time
+Use `holidays_between()` when ISO-formatted string values are needed for compatibility or serialization:
 
 ```python
-remaining = \
-{
-    'CalendarDays': fy.fiscal_days_remaining( ),
-    'Workdays': fy.workdays_remaining( ),
-    'WeekendDays': fy.weekends_remaining( ),
-    'FederalHolidays': fy.holidays_remaining( ),
-}
-
-print( remaining )
+holiday_text = fy.holidays_between(
+    start=date( 2026, 1, 1 ),
+    end=date( 2026, 9, 30 ),
+)
 ```
 
-## Build a Monthly Fiscal Summary
+## Work with Fiscal Months
 
 Federal fiscal months are numbered from October through September.
 
 | Fiscal Month | Calendar Month |
 |---:|---|
-| 1 | October |
-| 2 | November |
-| 3 | December |
-| 4 | January |
-| 5 | February |
-| 6 | March |
-| 7 | April |
-| 8 | May |
-| 9 | June |
-| 10 | July |
-| 11 | August |
-| 12 | September |
+| `1` | October |
+| `2` | November |
+| `3` | December |
+| `4` | January |
+| `5` | February |
+| `6` | March |
+| `7` | April |
+| `8` | May |
+| `9` | June |
+| `10` | July |
+| `11` | August |
+| `12` | September |
+
+Get month boundaries and counts:
 
 ```python
-rows = [ ]
+fiscal_month = 10
 
-for fiscal_month in range( 1, 13 ):
-    month_start, month_end = fy.fiscal_month_bounds( fiscal_month )
-
-    rows.append(
-        {
-            'FiscalMonth': fiscal_month,
-            'Month': fy.fiscal_month_name( fiscal_month ),
-            'StartDate': month_start,
-            'EndDate': month_end,
-            'CalendarDays': fy.fiscal_days_in_month( fiscal_month ),
-            'Weekdays': fy.weekdays_in_month( fiscal_month ),
-            'WeekendDays': fy.weekends_in_month( fiscal_month ),
-        }
-    )
-
-for row in rows:
-    print( row )
-```
-
-Monthly workday and holiday summaries are available directly:
-
-```python
-workdays = fy.workdays_by_month( )
-holidays = fy.holidays_by_month( )
-
-for month_name in workdays:
-    print(
-        month_name,
-        workdays[ month_name ],
-        holidays[ month_name ],
-    )
-```
-
-## Build a Quarterly Fiscal Summary
-
-```python
-quarters = [ ]
-
-for quarter in range( 1, 5 ):
-    quarter_start, quarter_end = fy.fiscal_quarter_bounds( quarter )
-
-    quarters.append(
-        {
-            'Quarter': f'Q{quarter}',
-            'StartDate': quarter_start,
-            'EndDate': quarter_end,
-            'CalendarDays': fy.fiscal_days_in_quarter( quarter ),
-            'WeekendDays': fy.count_weekends( quarter_start, quarter_end ),
-            'FederalHolidays': fy.count_holidays( quarter_start, quarter_end ),
-            'Workdays': fy.count_workdays( quarter_start, quarter_end ),
-        }
-    )
-
-for quarter in quarters:
-    print( quarter )
-```
-
-## Check Federal Holidays
-
-```python
-holiday = FederalHoliday( '2026' )
-```
-
-Return actual and observed dates:
-
-```python
-for name, values in holiday.holidays( ).items( ):
-    print(
-        name,
-        values[ 'actual' ],
-        values[ 'observed' ],
-    )
-```
-
-Check a specific date:
-
-```python
-observed = holiday.is_holiday(
-    when=date( 2026, 7, 3 ),
-    observed=True,
+month_start, month_end = fy.fiscal_month_bounds(
+    fiscal_month,
 )
 
-actual = holiday.is_holiday(
-    when=date( 2026, 7, 4 ),
-    observed=False,
-)
+month_summary = {
+    "Name": fy.fiscal_month_name(
+        fiscal_month,
+    ),
+    "StartDate": month_start,
+    "EndDate": month_end,
+    "CalendarDays": fy.fiscal_days_in_month(
+        fiscal_month,
+    ),
+    "Weekdays": fy.weekdays_in_month(
+        fiscal_month,
+    ),
+    "WeekendDays": fy.weekends_in_month(
+        fiscal_month,
+    ),
+}
 
-weekend = holiday.is_weekend(
-    date( 2026, 7, 4 ),
-)
-
-print( observed )
-print( actual )
-print( weekend )
+print( month_summary )
 ```
 
-## Work with Fiscal-Year Date Collections
+Count weekday occurrences by name:
+
+```python
+mondays = fy.weekday_occurrences(
+    fiscal_month=10,
+    weekday="Monday",
+)
+
+fridays = fy.weekday_occurrences(
+    fiscal_month=10,
+    weekday="Friday",
+)
+```
+
+Integer weekday values from `0` through `6` remain supported for compatibility, but callers do not need to import Python’s `calendar` module.
+
+## Render Text Calendars
+
+Render a selected fiscal month with `calendar.TextCalendar` through Fiscal:
+
+```python
+text_month = fy.fiscal_month_text_calendar(
+    fiscal_month=10,
+)
+
+print( text_month )
+```
+
+Render all twelve fiscal months in October-through-September order:
+
+```python
+text_year = fy.fiscal_year_text_calendar( )
+
+print( text_year )
+```
+
+Consumers do not instantiate or import `TextCalendar`. Fiscal resolves the calendar year and month represented by the selected federal fiscal month.
+
+## Render HTML Calendars
+
+Render one fiscal month as an HTML table:
+
+```python
+html_month = fy.fiscal_month_html_calendar(
+    fiscal_month=10,
+    with_year=True,
+)
+```
+
+Set `with_year=False` to omit the calendar year from the month heading:
+
+```python
+html_month = fy.fiscal_month_html_calendar(
+    fiscal_month=10,
+    with_year=False,
+)
+```
+
+Render the entire fiscal year in October-through-September order:
+
+```python
+html_year = fy.fiscal_year_html_calendar(
+    width=3,
+)
+```
+
+`width` controls the number of month tables in each outer HTML row and accepts values from `1` through `12`.
+
+## Work with Fiscal Quarters
+
+```python
+quarter = 4
+
+quarter_start, quarter_end = fy.fiscal_quarter_bounds(
+    quarter,
+)
+
+quarter_summary = {
+    "Quarter": quarter,
+    "StartDate": quarter_start,
+    "EndDate": quarter_end,
+    "CalendarDays": fy.fiscal_days_in_quarter(
+        quarter,
+    ),
+    "WeekendDays": fy.count_weekends(
+        quarter_start,
+        quarter_end,
+    ),
+    "FederalHolidays": fy.count_holidays(
+        quarter_start,
+        quarter_end,
+    ),
+    "Workdays": fy.count_workdays(
+        quarter_start,
+        quarter_end,
+    ),
+}
+
+print( quarter_summary )
+```
+
+The current quarter for `current_date` is available through:
+
+```python
+print( fy.fiscal_quarter_number( ) )
+```
+
+## Work with Fiscal Weeks
+
+Fiscal weeks are consecutive seven-day periods beginning on the fiscal-year start date. The final week is truncated at the fiscal-year end date.
+
+```python
+fiscal_week = fy.fiscal_week_number( )
+
+week_start, week_end = fy.fiscal_week_bounds(
+    fiscal_week,
+)
+
+print( fiscal_week )
+print( week_start )
+print( week_end )
+```
+
+The ISO calendar-week number is separate:
+
+```python
+print( fy.calendar_week_number( ) )
+```
+
+## Build Date Collections
 
 ```python
 all_dates = fy.fiscal_dates( )
-weekdays = fy.fiscal_weekdays( )
-weekends = fy.fiscal_weekends( )
-workdays = fy.fiscal_workdays( )
-
-print( len( all_dates ) )
-print( len( weekdays ) )
-print( len( weekends ) )
-print( len( workdays ) )
+weekday_dates = fy.fiscal_weekdays( )
+weekend_dates = fy.fiscal_weekends( )
+workday_dates = fy.fiscal_workdays( )
 ```
 
-Check whether a date is a workday:
+Use actual holiday dates when constructing workdays:
 
 ```python
-target_date = date( 2026, 7, 3 )
-is_workday = target_date in fy.fiscal_workdays( )
-
-print( is_workday )
-```
-
-Filter workdays to a reporting period:
-
-```python
-start_date = date( 2026, 7, 1 )
-end_date = date( 2026, 7, 31 )
-
-period_workdays = \
-[
-    current_date
-    for current_date in fy.fiscal_workdays( )
-    if start_date <= current_date <= end_date
-]
-
-print( period_workdays )
-```
-
-## Use Fiscal with pandas
-
-```python
-import pandas as pd
-```
-
-Create a fiscal-year DataFrame:
-
-```python
-df_fiscal_year = pd.DataFrame(
-    [ fy.to_dict( ) ]
+actual_date_workdays = fy.fiscal_workdays(
+    use_observed=False,
 )
-
-print( df_fiscal_year )
 ```
 
-Create a holiday DataFrame:
+Group fiscal-year dates by month:
 
 ```python
-holiday_rows = \
-[
-    {
-        'Holiday': name,
-        'ActualDate': values[ 'actual' ],
-        'ObservedDate': values[ 'observed' ],
-        'Adjusted': values[ 'actual' ] != values[ 'observed' ],
-    }
-    for name, values in FederalHoliday( fy.fiscal_year ).holidays( ).items( )
-]
+dates_by_month = fy.dates_by_month( )
 
-df_holidays = pd.DataFrame( holiday_rows )
-
-print( df_holidays )
+for month_name, dates in dates_by_month.items( ):
+    print( month_name, len( dates ) )
 ```
 
-Create a monthly operating calendar:
+`fiscal_calendar()` remains available as the original method. `dates_by_month()` is its clearer alias.
+
+## Build Monthly Summaries
 
 ```python
 weekdays = fy.weekdays_by_month( )
@@ -310,91 +377,215 @@ weekends = fy.weekends_by_month( )
 workdays = fy.workdays_by_month( )
 holidays = fy.holidays_by_month( )
 
-monthly_rows = \
-[
-    {
-        'Month': month_name,
-        'Weekdays': weekdays[ month_name ],
-        'WeekendDays': weekends[ month_name ],
-        'Workdays': workdays[ month_name ],
-        'FederalHolidays': len( holidays[ month_name ] ),
+monthly_summary = {
+    month_name: {
+        "Weekdays": weekdays[ month_name ],
+        "WeekendDays": weekends[ month_name ],
+        "Workdays": workdays[ month_name ],
+        "FederalHolidays": holidays[ month_name ],
     }
     for month_name in weekdays
-]
-
-df_monthly = pd.DataFrame( monthly_rows )
-
-print( df_monthly )
-```
-
-Export the analysis:
-
-```python
-df_monthly.to_csv(
-    'fiscal-month-summary.csv',
-    index=False,
-)
-
-df_holidays.to_excel(
-    'federal-holidays.xlsx',
-    index=False,
-)
-```
-
-## Validate Fiscal-Year Totals
-
-```python
-calculated_weekdays = len( fy.fiscal_weekdays( ) )
-calculated_weekends = len( fy.fiscal_weekends( ) )
-calculated_workdays = len( fy.fiscal_workdays( ) )
-
-validation = \
-{
-    'CalendarDaysBalance': (
-        calculated_weekdays
-        + calculated_weekends
-        == fy.fiscal_days_in_year( )
-    ),
-    'StoredWeekdaysMatch': calculated_weekdays == fy.weekdays,
-    'StoredWeekendsMatch': calculated_weekends == fy.weekends,
-    'StoredWorkdaysMatch': calculated_workdays == int( fy.workdays ),
 }
 
-print( validation )
+print( monthly_summary )
 ```
 
-## Application Integration Example
+## Determine Remaining Fiscal-Year Time
 
 ```python
-from datetime import date
+remaining = {
+    "CalendarDays": fy.fiscal_days_remaining( ),
+    "Workdays": fy.workdays_remaining( ),
+    "WeekendDays": fy.weekends_remaining( ),
+    "FederalHolidays": fy.holidays_remaining( ),
+}
 
-from fiscal import FiscalYear
+print( remaining )
+```
 
+For a future fiscal year, remaining calculations begin at the fiscal-year start date. For a completed fiscal year, they return zero.
 
-def build_fiscal_summary(
-    fiscal_year: str,
-    start_date: date,
-    end_date: date,
-) -> dict[ str, object ]:
-    fy = FiscalYear( fiscal_year )
+## Inspect Federal Holidays
 
-    return \
-    {
-        'FiscalYear': fy.fiscal_year,
-        'StartDate': start_date,
-        'EndDate': end_date,
-        'CalendarDays': ( end_date - start_date ).days + 1,
-        'WeekendDays': fy.count_weekends( start_date, end_date ),
-        'FederalHolidays': fy.holidays_between( start_date, end_date ),
-        'Workdays': fy.count_workdays( start_date, end_date ),
-    }
+```python
+holidays = FederalHoliday( 2026 )
+holiday_map = holidays.holidays( )
 
+for name, values in holiday_map.items( ):
+    print(
+        name,
+        values[ "actual" ],
+        values[ "observed" ],
+    )
+```
 
-summary = build_fiscal_summary(
-    fiscal_year='2026',
-    start_date=date( 2026, 7, 1 ),
-    end_date=date( 2026, 9, 30 ),
+Check a date:
+
+```python
+print(
+    holidays.is_holiday(
+        when=date( 2026, 7, 3 ),
+        observed=True,
+    )
 )
 
-print( summary )
+print(
+    holidays.is_holiday(
+        when=date( 2026, 7, 4 ),
+        observed=False,
+    )
+)
+
+print(
+    holidays.is_weekend(
+        date( 2026, 7, 4 ),
+    )
+)
 ```
+
+Calculate an observed date:
+
+```python
+print(
+    holidays.observed_date(
+        date( 2026, 7, 4 ),
+    )
+)
+```
+
+The observed-date rules are:
+
+- Saturday: preceding Friday
+- Sunday: following Monday
+- Monday through Friday: unchanged
+
+## Detect Leap Days
+
+```python
+print( fy.contains_leap_day( ) )
+print( fy.leap_days_in_availability( ) )
+```
+
+`contains_leap_day()` evaluates the represented fiscal year. `leap_days_in_availability()` evaluates the inclusive start and end dates stored for the selected availability record.
+
+## Use Fiscal with pandas
+
+```python
+import pandas as pd
+
+df_fiscal_year = pd.DataFrame(
+    [ fy.to_dict( ) ]
+)
+
+df_holidays = pd.DataFrame(
+    [
+        {
+            "Holiday": name,
+            "Date": holiday_date,
+        }
+        for name, holiday_date
+        in fy.holiday_dates_between(
+            start=fy.start_date,
+            end=fy.end_date,
+        ).items( )
+    ]
+)
+
+df_months = pd.DataFrame(
+    [
+        {
+            "Month": month_name,
+            "Weekdays": fy.weekdays_by_month( )[ month_name ],
+            "WeekendDays": fy.weekends_by_month( )[ month_name ],
+            "Workdays": fy.workdays_by_month( )[ month_name ],
+            "FederalHolidays": len(
+                fy.holidays_by_month( )[ month_name ],
+            ),
+        }
+        for month_name in fy.dates_by_month( )
+    ]
+)
+```
+
+Export results:
+
+```python
+df_months.to_csv(
+    "fiscal-month-summary.csv",
+    index=False,
+)
+```
+
+## Boundary Checks
+
+```python
+print( fy.is_fiscal_start_year( ) )
+print( fy.is_fiscal_end_year( ) )
+print( fy.is_calendar_start_year( ) )
+print( fy.is_calendar_end_date( ) )
+```
+
+These methods compare `current_date` to the exact boundary date.
+
+## Calendar Matrices
+
+Return complete Monday-through-Sunday date rows:
+
+```python
+date_rows = fy.fiscal_month_dates(
+    fiscal_month=10,
+)
+```
+
+Return day-number rows with zero placeholders for adjacent months:
+
+```python
+day_number_rows = fy.fiscal_month_day_numbers(
+    fiscal_month=10,
+)
+```
+
+The original method names remain available:
+
+```python
+date_rows = fy.fiscal_month_calendar( 10 )
+day_number_rows = fy.fiscal_month_weeks( 10 )
+```
+
+## Input Errors
+
+Fiscal wraps operational failures in `boogr.Error`. Typical causes include:
+
+- an unavailable fiscal-year record
+- an invalid fiscal month, quarter, week, or weekday
+- a reversed date range
+- a range that does not intersect the represented fiscal year
+- missing database tables or columns
+- malformed database values
+
+
+## Generate Calendars for a Date Range
+
+Use `date_range_text_calendar()` to render every calendar month intersecting an inclusive range:
+
+```python
+text_calendar = fy.date_range_text_calendar(
+    start=date( 2025, 11, 15 ),
+    end=date( 2026, 2, 2 ),
+)
+
+print( text_calendar )
+```
+
+Generate equivalent HTML:
+
+```python
+html_calendar = fy.date_range_html_calendar(
+    start=date( 2025, 11, 15 ),
+    end=date( 2026, 2, 2 ),
+    width=2,
+    with_year=True,
+)
+```
+
+The first and final months are rendered as complete month calendars. The range is inclusive and constrained to the represented fiscal year. Reversed ranges and ranges that do not intersect the represented fiscal year raise `boogr.Error`.

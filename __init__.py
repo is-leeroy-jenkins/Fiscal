@@ -352,20 +352,17 @@ class FiscalYear( DB ):
 	range_end: Optional[ date ]
 	use_observed: Optional[ bool ]
 	
-	def __init__( self, fy: str | int, bpoa: str | int = '', epoa: str | int = '',
-		current_date: date | datetime | str | None = None ) -> None:
+	def __init__( self, fy: str | int, bpoa: str | int = '', epoa: str | int = '' ) -> None:
 		"""Initialize a budget fiscal-year entity.
 
 		Purpose:
-			Retrieves one fiscal-year record and initializes calendar calculations for a
-			caller-selected date. The current system date is used when ``current_date`` is omitted.
+			Retrieves one fiscal-year record and initializes calendar calculations using the
+			current system date returned by ``datetime.today().date()``.
 
 		Args:
 			fy (str | int): Fiscal year used to retrieve the database row.
 			bpoa (str | int): Beginning period of availability. An empty value defaults to ``fy``.
 			epoa (str | int): Ending period of availability. An empty value defaults to ``fy``.
-			current_date (date | datetime | str | None): Date used by calendar and fiscal
-				calculations.
 
 		Returns:
 			None: Initialization does not return a value.
@@ -394,10 +391,7 @@ class FiscalYear( DB ):
 		self.compensable_hours = float( row[ 'CompensableHours' ] )
 		self.type = str( row[ 'Type' ] )
 		self.availability = str( row[ 'Availability' ] )
-		calculation_date = datetime.today( ).date( ) if current_date is None else to_date(
-			current_date )
-		throw_if( 'current_date', calculation_date )
-		self.current_date = calculation_date
+		self.current_date = datetime.today( ).date( )
 		self.calendar_year = self.current_date.year
 		self.cy_start_date = date( self.calendar_year, 1, 1 )
 		self.cy_end_date = date( self.calendar_year, 12, 31 )

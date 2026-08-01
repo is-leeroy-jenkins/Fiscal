@@ -1,155 +1,172 @@
 # Fiscal Developer Guide
 
-Fiscal is a Python library for U.S. federal fiscal-year, calendar-year, federal-holiday, workday, weekend, and reporting calculations. This guide describes the current implementation contract, internal architecture, database dependencies, development workflow, testing approach, and extension points.
+Fiscal is a SQLite-backed Python package for federal fiscal-year, calendar-year, federal-holiday, workday, and weekend calculations.
 
-## Project Layout
+This guide documents the audited implementation in `fiscal/__init__.py`.
 
-A minimal project layout is:
-
-```text
-Fiscal/
-├── fiscal/
-│   └── __init__.py
-├── resources/
-│   └── data/
-│       └── fiscal.db
-├── config.py
-├── pyproject.toml
-├── README.md
-├── USER_GUIDE.md
-└── DEVELOPER_GUIDE.md
-```
-
-The package name is `fiscal`.
+## Public Package Contract
 
 ```python
 from fiscal import DB, FederalHoliday, FiscalYear, throw_if, to_date
 ```
 
+The audited `__all__` contract exports:
+
+```python
+__all__: tuple[ str, ... ] = (
+    "DB",
+    "FederalHoliday",
+    "FiscalYear",
+    "throw_if",
+    "to_date",
+)
+```
+
+The module also contains the internal weekday-normalization helper `_weekday_number()`.
+
 ## Runtime Dependencies
 
-The current implementation imports:
+Standard-library dependencies:
 
 ```text
 calendar
 sqlite3
 datetime
 typing
+```
+
+Third-party and project dependencies:
+
+```text
 pandas
 config
 boogr
 ```
 
-Third-party dependencies:
+Install external runtime dependencies with:
 
 ```bash
 pip install pandas boogr
 ```
 
-Development dependencies may include:
-
-```bash
-pip install pytest pytest-cov ruff mypy
-```
-
 ## Configuration Contract
 
-The package expects `config.py` to expose two members:
+`config.py` must define:
 
 ```python
-DB_PATH: str = "resources/data/fiscal.db"
+DB_PATH: str
 
-TABLES: list[str] = [
+TABLES: list[ str ] = [
     "BudgetFiscalYears",
     "FederalHolidays",
 ]
 ```
 
-`DB_PATH` identifies the SQLite database used by `DB.create_connection()`.
+The implementation uses positional table selection:
 
-`TABLES` is positional:
-
-| Index | Purpose |
+| Index | Consumer |
 |---:|---|
-| `0` | Fiscal-year table |
-| `1` | Federal-holiday table |
+| `0` | `FiscalYear` |
+| `1` | `FederalHoliday` and `FiscalYear.holidays` |
 
-Changing this order changes which table is queried by `FiscalYear` and `FederalHoliday`.
+Changing the order changes runtime behavior.
 
 ## Database Contract
 
-### Fiscal-year table
+### `BudgetFiscalYears`
 
-`FiscalYear` expects one matching row for the requested combination of fiscal year, beginning period of availability, and ending period of availability.
+A fiscal-year query uses:
 
-Expected fields:
+```sql
+SELECT *
+FROM "BudgetFiscalYears"
+WHERE FiscalYear = ?
+  AND BPOA = ?
+  AND EPOA = ?;
+```
 
-| Column | Purpose |
+Exactly one row must be returned.
+
+Required columns:
+
+| Column | Conversion |
 |---|---|
-| `ID` | Row identifier |
-| `FiscalYear` | Fiscal-year label |
-| `BPOA` | Beginning period of availability |
-| `EPOA` | Ending period of availability |
-| `StartDate` | Fiscal-year start date |
-| `EndDate` | Fiscal-year end date |
-| `ExpirationDate` | Expiration date or supported sentinel |
-| `CancellationDate` | Cancellation date or supported sentinel |
-| `Weekdays` | Stored weekday count |
-| `Weekends` | Stored weekend count |
-| `Workdays` | Stored workday count |
-| `CompensableDays` | Stored compensable-day count |
-| `CompensableHours` | Stored compensable-hour count |
-| `Type` | Appropriation type |
-| `Availability` | Availability description |
+| `ID` | `int` |
+| `FiscalYear` | `str` |
+| `BPOA` | `str` |
+| `EPOA` | `str` |
+| `StartDate` | `to_date()` |
+| `EndDate` | `to_date()` |
+| `ExpirationDate` | `to_date()` |
+| `CancellationDate` | `to_date()` |
+| `Weekdays` | `int` |
+| `Weekends` | `int` |
+| `Workdays` | `float` |
+| `CompensableDays` | `float` |
+| `CompensableHours` | `float` |
+| `Type` | `str` |
+| `Availability` | `str` |
 
-### Federal-holiday table
+`compensable_workdays` is initialized as a backward-compatible alias for `compensable_days`.
 
-`FederalHoliday` expects one matching row for the requested fiscal year.
+### `FederalHolidays`
 
-Expected fields:
+A holiday query uses:
 
-| Column | Purpose |
+```sql
+SELECT *
+FROM "FederalHolidays"
+WHERE FiscalYear = ?;
+```
+
+Exactly one row must be returned.
+
+Required columns:
+
+| Column | Domain member |
 |---|---|
-| `ID` | Row identifier |
-| `FiscalYear` | Fiscal-year label |
-| `ColumbusDay` | Columbus Day |
-| `VeteransDay` | Veterans Day |
-| `ThanksgivingDay` | Thanksgiving Day |
-| `ChristmasDay` | Christmas Day |
-| `NewYearsDay` | New Year's Day |
-| `MartinLutherKingDay` | Birthday of Martin Luther King, Jr. |
-| `PresidentsDay` | Washington's Birthday |
-| `MemorialDay` | Memorial Day |
-| `JuneteenthDay` | Juneteenth National Independence Day |
-| `IndependenceDay` | Independence Day |
-| `LaborDay` | Labor Day |
+| `ID` | `id` |
+| `FiscalYear` | `fiscal_year` |
+| `ColumbusDay` | `columbus_day` |
+| `VeteransDay` | `veterans_day` |
+| `ThanksgivingDay` | `thanksgiving_day` |
+| `ChristmasDay` | `christmas_day` |
+| `NewYearsDay` | `new_years_day` |
+| `MartinLutherKingDay` | `martin_luther_king_day` |
+| `PresidentsDay` | `presidents_day` |
+| `MemorialDay` | `memorial_day` |
+| `JuneteenthDay` | `juneteenth_day` |
+| `IndependenceDay` | `independence_day` |
+| `LaborDay` | `labor_day` |
 
-## Architecture
+## Input Utilities
 
-The implementation consists of two utility functions and three public classes.
-
-### `throw_if`
+### `throw_if()`
 
 ```python
-def throw_if(
+throw_if(
     name: str,
     value: object,
-) -> None:
+) -> None
 ```
 
-Validates required arguments before database or calculation logic proceeds.
+The guard rejects:
 
-### `to_date`
+- `None`
+- blank strings
+- empty lists, tuples, dictionaries, and sets
+
+It does not reject valid numeric zero.
+
+### `to_date()`
 
 ```python
-def to_date(
+to_date(
     value: date | datetime | str | None,
-) -> Optional[date]:
+) -> date | None
 ```
 
-Normalizes supported date values to `datetime.date`.
-
-Supported string formats:
+Supported text formats:
 
 ```text
 YYYY-MM-DD
@@ -157,440 +174,495 @@ MM/DD/YYYY
 MM/DD/YY
 ```
 
-Supported null-like values include:
+These database sentinel values resolve to `None`:
 
 ```text
-None
 ""
-"NS"
-"N/A"
-"NA"
-"NONE"
-"NULL"
+NS
+N/A
+NA
+NONE
+NULL
 ```
 
-### `DB`
+Unsupported text raises `ValueError`. Unsupported types raise `TypeError`.
 
-Responsibilities:
-
-- retain the configured database path and table collection;
-- create SQLite connections;
-- query fiscal-year records;
-- query federal-holiday records;
-- return query results as pandas DataFrames.
-
-The database layer intentionally performs no calendar calculations.
-
-### `FiscalYear`
-
-Responsibilities:
-
-- load one fiscal-year record;
-- expose stored appropriation and availability values;
-- calculate calendar-year and fiscal-year progress;
-- calculate fiscal month, quarter, and week boundaries;
-- count weekdays, weekends, holidays, and workdays;
-- produce fiscal date collections and monthly groupings;
-- return serializable dictionary representations.
-
-The class is database-backed. Construction is therefore both object initialization and data hydration.
+### `_weekday_number()`
 
 ```python
-fy = FiscalYear(
-    fy="2026",
-    bpoa="2026",
-    epoa="2026",
+_weekday_number(
+    value: int | str,
+) -> int
+```
+
+Accepted names are full English weekday names, case-insensitively:
+
+```text
+Monday
+Tuesday
+Wednesday
+Thursday
+Friday
+Saturday
+Sunday
+```
+
+Integers from `0` through `6` remain supported for compatibility.
+
+## Database Access
+
+### `DB.create_connection()`
+
+Uses `sqlite3.connect(cfg.DB_PATH)`.
+
+### `DB.query_year()`
+
+- validates all arguments
+- validates the table against `cfg.TABLES`
+- uses parameterized SQL
+- requires exactly one result row
+- returns a copied `pandas.DataFrame`
+
+### `DB.query_holiday()`
+
+- validates the table and fiscal year
+- uses parameterized SQL
+- requires exactly one result row
+- returns a copied `pandas.DataFrame`
+
+Failures are wrapped as `boogr.Error` with module, cause, and method metadata.
+
+## `FiscalYear` Construction
+
+```python
+FiscalYear(
+    fy: str | int,
+    bpoa: str | int = "",
+    epoa: str | int = "",
+    current_date: date | datetime | str | None = None,
 )
 ```
 
-### `FederalHoliday`
+Construction performs these steps:
 
-Responsibilities:
+1. Initialize database configuration.
+2. Validate `fy`.
+3. Normalize fiscal-year, BPOA, and EPOA values to strings.
+4. Query exactly one `BudgetFiscalYears` row.
+5. Convert and assign database fields.
+6. Initialize `compensable_workdays`.
+7. Normalize the calculation date.
+8. Derive the calendar year and calendar boundaries.
 
-- load one federal-holiday row;
-- expose stored holiday dates;
-- derive observed dates;
-- distinguish actual and observed holiday dates;
-- evaluate holiday and weekend membership;
-- return serializable dictionary representations.
+When `current_date` is omitted, the system date is used. Tests and reproducible analysis should supply it explicitly.
+
+## Calculation-Date Semantics
+
+The following methods depend on `current_date`:
+
+- calendar and fiscal elapsed/remaining calculations
+- calendar and fiscal percentages
+- current fiscal month, quarter, and week
+- current calendar week
+- current weekday and month names
+- remaining holiday, workday, and weekend counts
+- fiscal and calendar boundary predicates
+
+The fiscal-year database record and the calculation date are independent. A date before, within, or after the represented fiscal year is valid.
+
+## Fiscal Range Contract
+
+`_fiscal_range()` is the common range-validation path used by:
+
+- `count_weekends()`
+- `count_holidays()`
+- `count_workdays()`
+- `holiday_dates_between()`
+- `holidays_between()`
+
+It:
+
+1. validates both arguments
+2. converts them with `to_date()`
+3. rejects reversed ranges
+4. clamps the range to the represented fiscal year
+5. rejects ranges with no fiscal-year intersection
+
+All public range methods are inclusive.
+
+## Calendar and Fiscal Progress
+
+Calendar methods operate on the calendar year containing `current_date`.
+
+Fiscal methods operate relative to the selected fiscal-year record.
+
+Exact-boundary predicates are:
 
 ```python
-holiday = FederalHoliday("2026")
+is_fiscal_start_year()
+is_fiscal_end_year()
+is_calendar_start_year()
+is_calendar_end_date()
 ```
 
-## Object Hydration
+Each compares `current_date` to the exact boundary date.
 
-`FiscalYear.__init__()` resolves empty availability values to the supplied fiscal year:
+## Fiscal Months
 
-```python
-self.fiscal_year = fy
-self.bpoa = bpoa or fy
-self.epoa = epoa or fy
-```
-
-It then queries the fiscal-year table and requires exactly one matching row.
-
-`FederalHoliday.__init__()` queries by fiscal year and likewise requires exactly one matching row.
-
-Developers adding new constructor parameters should preserve this sequence:
-
-1. validate the argument;
-2. assign it to an instance member;
-3. use the instance member in downstream calls;
-4. hydrate the returned row;
-5. convert database values to their runtime types.
-
-## Date Semantics
-
-Fiscal years run from October 1 through September 30.
-
-For FY 2026:
+Federal fiscal-month numbering is:
 
 ```text
-Start: 2025-10-01
-End:   2026-09-30
+1  October
+2  November
+3  December
+4  January
+5  February
+6  March
+7  April
+8  May
+9  June
+10 July
+11 August
+12 September
 ```
 
-Fiscal-month numbering is:
+Core methods:
 
-| Fiscal Month | Calendar Month |
-|---:|---|
-| `1` | October |
-| `2` | November |
-| `3` | December |
-| `4` | January |
-| `5` | February |
-| `6` | March |
-| `7` | April |
-| `8` | May |
-| `9` | June |
-| `10` | July |
-| `11` | August |
-| `12` | September |
+```python
+fiscal_month_number()
+fiscal_month_bounds(fiscal_month)
+fiscal_days_in_month(fiscal_month)
+fiscal_month_name(fiscal_month)
+weekdays_in_month(fiscal_month)
+weekends_in_month(fiscal_month)
+weekday_occurrences(fiscal_month, weekday)
+```
 
-Observed federal holidays follow the weekday adjustment used by the implementation:
+`weekday_occurrences()` accepts names and legacy integer values.
 
-- Saturday holidays are observed on Friday.
-- Sunday holidays are observed on Monday.
-- Weekday holidays retain their actual date.
+## Calendar Matrices and Compatibility Aliases
+
+Original methods:
+
+```python
+fiscal_month_calendar(
+    fiscal_month: int,
+) -> list[ list[ date ] ]
+
+fiscal_month_weeks(
+    fiscal_month: int,
+) -> list[ list[ int ] ]
+```
+
+Clearer aliases:
+
+```python
+fiscal_month_dates(
+    fiscal_month: int,
+) -> list[ list[ date ] ]
+
+fiscal_month_day_numbers(
+    fiscal_month: int,
+) -> list[ list[ int ] ]
+```
+
+The date matrix retains adjacent-month dates to produce complete Monday-through-Sunday rows. The integer matrix uses zero placeholders for adjacent months.
+
+## Text and HTML Calendar Rendering
+
+The rendering functionality is integrated directly into `FiscalYear`. No additional classes are introduced.
+
+```python
+fiscal_month_text_calendar(
+    fiscal_month: int,
+) -> str
+
+fiscal_year_text_calendar( ) -> str
+
+fiscal_month_html_calendar(
+    fiscal_month: int,
+    with_year: bool = True,
+) -> str
+
+fiscal_year_html_calendar(
+    width: int = 3,
+) -> str
+```
+
+Implementation behavior:
+
+- `fiscal_month_text_calendar()` uses `calendar.TextCalendar` with Monday as the first weekday.
+- `fiscal_year_text_calendar()` joins twelve fiscal-month renderings in October-through-September order.
+- `fiscal_month_html_calendar()` uses `calendar.HTMLCalendar` with Monday as the first weekday.
+- `fiscal_year_html_calendar()` groups twelve HTML month tables into rows controlled by `width`.
+- `width` must be an integer from `1` through `12`; boolean values are rejected.
+- All rendering failures are wrapped in `boogr.Error`.
+- The four methods are included in `FiscalYear.__dir__()`.
+
+The fiscal-year methods deliberately do not call `TextCalendar.formatyear()` or `HTMLCalendar.formatyear()` because those APIs render January through December. Fiscal must preserve October-through-September ordering across two calendar years.
+
+## Fiscal Quarters
+
+```python
+fiscal_quarter_number() -> int
+fiscal_quarter_bounds(quarter: int) -> tuple[date, date]
+fiscal_days_in_quarter(quarter: int) -> int
+```
+
+Quarter values are restricted to `1` through `4`.
+
+## Fiscal Weeks
+
+```python
+fiscal_week_number() -> int
+fiscal_week_bounds(fiscal_week: int) -> tuple[date, date]
+```
+
+Fiscal weeks are consecutive seven-day periods beginning on `start_date`. The final week is truncated at `end_date`.
+
+This definition is distinct from ISO calendar weeks returned by `calendar_week_number()`.
+
+## Date Collections
+
+```python
+fiscal_dates() -> list[date]
+fiscal_weekdays() -> list[date]
+fiscal_weekends() -> list[date]
+fiscal_workdays(use_observed=True) -> list[date]
+```
+
+`fiscal_weekdays()` includes Monday through Friday without removing holidays.
+
+`fiscal_workdays()` removes either observed or actual federal holidays.
+
+## Month Grouping
+
+Original method:
+
+```python
+fiscal_calendar() -> dict[str, list[date]]
+```
+
+Clearer alias:
+
+```python
+dates_by_month() -> dict[str, list[date]]
+```
+
+Summary methods:
+
+```python
+weekdays_by_month() -> dict[str, int]
+weekends_by_month() -> dict[str, int]
+workdays_by_month(use_observed=True) -> dict[str, int]
+holidays_by_month(use_observed=True) -> dict[str, list[date]]
+```
+
+All twelve fiscal months are included.
+
+## Holiday Contracts
+
+### `FiscalYear.holidays`
+
+This property preserves the database-oriented compatibility contract:
+
+```python
+list[dict[str, str]]
+```
+
+It excludes `ID` and `FiscalYear`, converts nulls to empty strings, and retains the database column names.
+
+### `FederalHoliday.holidays()`
+
+Returns domain holiday names with native actual and observed dates:
+
+```python
+dict[str, dict[str, date]]
+```
+
+### `FiscalYear.holiday_dates_between()`
+
+Preferred application contract:
+
+```python
+dict[str, date]
+```
+
+### `FiscalYear.holidays_between()`
+
+Compatibility contract:
+
+```python
+dict[str, str]
+```
+
+The string values are ISO-formatted dates.
+
+## Remaining-Time Methods
+
+```python
+holidays_remaining(use_observed=True) -> int
+workdays_remaining(use_observed=True) -> int
+weekends_remaining() -> int
+```
+
+Behavior:
+
+- completed fiscal year: `0`
+- current fiscal year: count from `current_date`
+- future fiscal year: count from `start_date`
+
+Counts are inclusive.
+
+## Leap-Day Methods
+
+```python
+contains_leap_day() -> bool
+leap_days_in_availability() -> int
+```
+
+`contains_leap_day()` checks the represented fiscal-year boundaries.
+
+`leap_days_in_availability()` checks the stored inclusive start and end dates for the selected fiscal-year/BPOA/EPOA record.
+
+## `FederalHoliday`
+
+```python
+FederalHoliday(
+    fiscal_year: str | int,
+)
+```
+
+The class loads one database row and exposes the stored holidays as date-valued members.
+
+### Observed dates
+
+```python
+observed_date(value: date) -> date
+```
+
+Rules:
+
+- Saturday: preceding Friday
+- Sunday: following Monday
+- weekday: unchanged
+
+### Membership tests
+
+```python
+is_holiday(
+    when: date | datetime,
+    observed: bool = True,
+) -> bool
+
+is_weekend(
+    when: date | datetime,
+) -> bool
+```
+
+### Dictionary export
+
+```python
+to_dict() -> dict[str, object]
+```
+
+The export retains database-oriented field names and includes `ID` and `FiscalYear`.
 
 ## Error Handling
 
-The package uses `boogr.Error` to preserve contextual failure information.
-
-The established pattern is:
+Operational methods use this pattern:
 
 ```python
 except Exception as e:
-    ex = Error(e)
+    ex = Error( e )
     ex.module = "fiscal"
     ex.cause = "FiscalYear"
-    ex.method = (
-        "method_name( self, parameter: type ) "
-        "-> return_type"
-    )
+    ex.method = "method_signature"
     raise ex
 ```
 
-When adding or changing methods:
+Database and holiday methods use their corresponding causes.
 
-- preserve the original exception as the cause;
-- set `module`;
-- set `cause`;
-- set the complete method signature;
-- raise the same `Error` instance;
-- do not create a second wrapper object.
+Callers should catch `boogr.Error` when handling operational failures.
 
-## Adding a Calculation Method
+## Audited Runtime Coverage
 
-A new calculation method should:
+The audited module was exercised through:
 
-1. use existing hydrated members when possible;
-2. validate external arguments with `throw_if`;
-3. assign validated arguments to instance members before use;
-4. return a fully annotated value;
-5. use inclusive or exclusive date semantics consistently;
-6. add the public method name to `__dir__()`;
-7. include a Google-style docstring;
-8. preserve the established `Error` wrapping pattern.
+- compilation and import
+- all exported utilities
+- every constructor
+- every property and public method
+- all compatibility aliases
+- all twelve text and HTML fiscal-month renderings
+- fiscal-year text rendering
+- fiscal-year HTML widths `1`, `2`, `3`, `4`, `6`, and `12`
+- invalid text/HTML month values and invalid HTML widths
+- fiscal months `1` through `12`
+- fiscal quarters `1` through `4`
+- valid and invalid fiscal weeks
+- weekday names and integer values
+- leap and non-leap fiscal years
+- actual and observed holiday branches
+- fiscal and calendar boundary dates
+- past, current, and future fiscal-year calculations
+- reversed and nonintersecting ranges
+- missing records and unsupported tables
 
-Example structure:
+The completed audit reported 236 passing execution checks and no failing paths.
 
-```python
-def example_count(
-    self,
-    start: date,
-    end: date,
-) -> int:
-    """Count matching dates in an inclusive range.
+## Extension Guidelines
 
-    Purpose:
-        Counts dates satisfying the operation's rule between
-        the supplied start and end dates, inclusive.
+When adding functionality:
 
-    Args:
-        start (date): First date included in the range.
-        end (date): Final date included in the range.
+1. Preserve existing public members and compatibility aliases.
+2. Accept domain-friendly inputs rather than exposing standard-library constants.
+3. Use `current_date` for reproducible date-dependent calculations.
+4. Route fiscal range operations through `_fiscal_range()`.
+5. Return native `date` values in new domain APIs.
+6. Preserve string-returning methods only where compatibility requires them.
+7. Use `throw_if()` for required arguments.
+8. Wrap operational exceptions in `boogr.Error`.
+9. Keep DataFrame variables prefixed with `df_`.
+10. Update `__dir__()`, README, User Guide, Developer Guide, and runtime tests together.
 
-    Returns:
-        int: Number of matching dates.
-    """
-    try:
-        throw_if("start", start)
-        throw_if("end", end)
+## Validation Checklist
 
-        self.start = start
-        self.end = end
-
-        return 0
-    except Exception as e:
-        ex = Error(e)
-        ex.module = "fiscal"
-        ex.cause = "FiscalYear"
-        ex.method = (
-            "example_count( self, start: date, "
-            "end: date ) -> int"
-        )
-        raise ex
-```
-
-## Extending the Database Model
-
-When a new database column is introduced:
-
-1. add the column to the SQLite table;
-2. populate it for every supported fiscal year;
-3. add the corresponding class annotation;
-4. hydrate it in the constructor;
-5. convert it to the correct Python type;
-6. expose it through `to_dict()` when it is part of the public record;
-7. update tests for null, sentinel, and malformed values;
-8. update the user and developer documentation.
-
-Do not rely on numeric row positions when a named-column access pattern is available. Named columns make schema changes easier to audit.
-
-## Public Surface Maintenance
-
-The package uses explicit `__dir__()` implementations to expose its supported members.
-
-Whenever a public method or property is added or renamed:
-
-- update the corresponding `__dir__()` method;
-- remove obsolete names;
-- verify every listed name exists;
-- verify every intended public name is listed.
-
-A simple test can enforce the contract:
-
-```python
-def test_fiscal_year_dir_members_exist() -> None:
-    fy = FiscalYear("2026")
-
-    for name in fy.__dir__():
-        assert hasattr(fy, name)
-```
-
-## Testing
-
-### Unit tests
-
-Unit tests should cover:
-
-- `throw_if`;
-- `to_date`;
-- observed-date adjustment;
-- fiscal-month mapping;
-- fiscal-quarter mapping;
-- fiscal-week boundaries;
-- leap-day calculations;
-- reversed date ranges;
-- actual versus observed holiday behavior.
-
-Example:
-
-```python
-from datetime import date
-
-from fiscal import FederalHoliday
-
-
-def test_saturday_holiday_is_observed_friday() -> None:
-    holiday = FederalHoliday("2026")
-
-    actual = date(2026, 7, 4)
-    observed = holiday.observed_date(actual)
-
-    assert observed == date(2026, 7, 3)
-```
-
-### Integration tests
-
-Integration tests should use a temporary SQLite database containing controlled rows for both tables.
-
-Test at least:
-
-- one ordinary fiscal year;
-- one leap-day fiscal year;
-- one multi-year availability period;
-- one weekend holiday;
-- one fiscal year with sentinel expiration or cancellation values;
-- missing rows;
-- duplicate rows;
-- malformed date values.
-
-### Cross-checks
-
-Useful consistency assertions include:
-
-```python
-assert (
-    len(fy.fiscal_weekdays())
-    + len(fy.fiscal_weekends())
-    == fy.fiscal_days_in_year()
-)
-```
-
-```python
-assert len(
-    fy.fiscal_workdays()
-) == fy.count_workdays(
-    fy.start_date,
-    fy.end_date,
-)
-```
-
-```python
-assert fy.fiscal_month_bounds(1)[0] == fy.start_date
-assert fy.fiscal_month_bounds(12)[1] == fy.end_date
-```
-
-### Compilation
+Before release:
 
 ```bash
 python -m py_compile fiscal/__init__.py
+pytest
 ```
 
-### Test execution
+Confirm:
 
-```bash
-pytest -q
+- `config.py` exposes `DB_PATH` and ordered `TABLES`
+- both SQLite tables exist
+- all required columns exist
+- each query returns exactly one row
+- date fields use supported formats or sentinels
+- every public method has a valid execution-path test
+- actual and observed holiday branches are covered
+- fiscal start, end, leap-day, and final-week boundaries are covered
+
+
+## Date-Range Calendar Rendering
+
+The range renderers are implemented directly on `FiscalYear` and add no classes:
+
+```python
+date_range_text_calendar(
+    start: date | datetime,
+    end: date | datetime,
+) -> str
+
+date_range_html_calendar(
+    start: date | datetime,
+    end: date | datetime,
+    width: int = 3,
+    with_year: bool = True,
+) -> str
 ```
 
-With coverage:
-
-```bash
-pytest --cov=fiscal --cov-report=term-missing
-```
-
-## Static Analysis
-
-Ruff:
-
-```bash
-ruff check fiscal tests
-```
-
-Mypy:
-
-```bash
-mypy fiscal
-```
-
-The current implementation uses `typing.Dict`, `typing.List`, `typing.Optional`, and `typing.Tuple`. Modernization to built-in generics should be performed consistently across the entire package rather than incrementally.
-
-## Development Workflow
-
-Recommended sequence:
-
-```bash
-git checkout -b feature/<name>
-```
-
-```bash
-python -m py_compile fiscal/__init__.py
-```
-
-```bash
-pytest -q
-```
-
-```bash
-ruff check fiscal tests
-```
-
-```bash
-git add fiscal tests DEVELOPER_GUIDE.md USER_GUIDE.md
-git commit -m "Describe the change"
-```
-
-## Packaging
-
-The distribution name and import package should both remain aligned with the renamed project:
-
-```text
-Distribution: fiscal
-Import:       fiscal
-Project:      Fiscal
-```
-
-Example `pyproject.toml` metadata:
-
-```toml
-[project]
-name = "fiscal"
-description = "Federal fiscal-year and holiday utilities"
-requires-python = ">=3.11"
-dependencies = [
-    "boogr",
-    "pandas",
-]
-```
-
-Package discovery must include the `fiscal` package directory.
-
-## Documentation Responsibilities
-
-Use separate documents for separate audiences:
-
-- `README.md`: project overview, installation, and repository-level instructions;
-- `USER_GUIDE.md`: task-oriented consumer workflows;
-- `DEVELOPER_GUIDE.md`: architecture, internal contracts, testing, and extension procedures;
-- API reference: generated class and member documentation.
-
-Do not place database reconstruction instructions or exhaustive member catalogs in the user guide.
-
-## Release Checklist
-
-Before publishing a release:
-
-- confirm the package imports as `fiscal`;
-- confirm no public documentation uses the former project name;
-- compile the package;
-- run the full test suite;
-- validate the packaged SQLite database;
-- verify every supported fiscal year returns exactly one row;
-- verify actual and observed holiday behavior;
-- verify `__dir__()` entries;
-- regenerate API documentation;
-- review `README.md`, `USER_GUIDE.md`, and `DEVELOPER_GUIDE.md`;
-- update the version and changelog;
-- build and inspect the distribution artifacts.
-
-Build:
-
-```bash
-python -m build
-```
-
-Inspect:
-
-```bash
-python -m zipfile -l dist/fiscal-*.whl
-```
-
-Install the wheel into a clean environment before release:
-
-```bash
-pip install dist/fiscal-*.whl
-python -c "from fiscal import FiscalYear; print(FiscalYear('2026'))"
-```
+Both methods route dates through `_fiscal_range()`, reject reversed or nonintersecting ranges, clamp intersecting ranges to the represented fiscal year, and render each intersecting month chronologically. The boundary months remain complete month calendars.
