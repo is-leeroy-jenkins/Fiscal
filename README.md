@@ -1,8 +1,9 @@
 ###### tempus
-![](https://github.com/is-leeroy-jenkins/Tempus/blob/master/resources/images/github/project_tempus.png)
+![](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/images/github/project_tempus.png)
 
 > Modern Federal Fiscal Year & Calendar Utilities for Python  
-> Precise, production-ready tools to unify U.S. fiscal year (FY) and calendar year (CY) calculations, including workdays, weekends, and official U.S. federal holidays — all with a clean, well-documented API.
+> Precise, production-ready tools to unify U.S. fiscal year (FY) and calendar year (CY) calculations, 
+> including workdays, weekends, and official U.S. federal holidays — all with a clean, well-documented API.
 
 
 
