@@ -64,49 +64,6 @@ TABLES = [
 ]
 ```
 
-### `BudgetFiscalYears`
-
-```text
-ID
-FiscalYear
-BPOA
-EPOA
-StartDate
-EndDate
-ExpirationDate
-CancellationDate
-Weekdays
-Weekends
-Workdays
-CompensableDays
-CompensableHours
-Type
-Availability
-```
-
-### `FederalHolidays`
-
-```text
-ID
-FiscalYear
-ColumbusDay
-VeteransDay
-ThanksgivingDay
-ChristmasDay
-NewYearsDay
-MartinLutherKingDay
-PresidentsDay
-MemorialDay
-JuneteenthDay
-IndependenceDay
-LaborDay
-```
-
-`TABLES[0]` identifies `BudgetFiscalYears`.
-
-`TABLES[1]` identifies `FederalHolidays`.
-
-Each query requires exactly one matching row.
 
 <a id="quick-start"></a>
 
@@ -147,7 +104,7 @@ fy = FiscalYear(
 )
 ```
 
-### Calendar Calculations
+### Calendar Year Calculations
 
 ```python
 fy.calendar_day_of_year()
@@ -162,7 +119,7 @@ fy.is_calendar_start_year()
 fy.is_calendar_end_date()
 ```
 
-### Fiscal Calculations
+### Fiscal Year Calculations
 
 ```python
 fy.fiscal_day_of_year()
