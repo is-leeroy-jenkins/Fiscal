@@ -427,17 +427,6 @@ FiscalYear(
 
 `to_date()` accepts `date`, `datetime`, `YYYY-MM-DD`, `MM/DD/YYYY`, and `MM/DD/YY`. Database sentinel values resolve to `None`.
 
-## 📚 References
-
-- [Fiscal Year](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md#fiscal-year)
-- [Federal Holidays](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/)
-
-<a id="license"></a>
-
-## 📜 [License](https://github.com/is-leeroy-jenkins/fiscal/blob/master/LICENSE.txt)
-
-MIT © 2022 Terry D. Eppler
-
 
 ### Date-Range Calendars
 
@@ -460,3 +449,15 @@ html_calendar = fy.date_range_html_calendar(
 ```
 
 The methods render November 2025 through February 2026 in chronological order. The supplied range is inclusive and constrained to the represented fiscal year.
+
+
+## 📚 References
+
+- [Fiscal Year](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md#fiscal-year)
+- [Federal Holidays](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/)
+
+<a id="license"></a>
+
+## 📜 [License](https://github.com/is-leeroy-jenkins/fiscal/blob/master/LICENSE.txt)
+
+MIT © 2022 Terry D. Eppler
