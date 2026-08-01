@@ -5,25 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c9b76275-5956-4338-b99f-71253c4218ca" name="Changes" comment="updates">
-      <change afterPath="$PROJECT_DIR$/docs/api/fiscal.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/api/index.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/architecture.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/development.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/index.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/stylesheets/extra.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/calendar-rendering.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/data-exports.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/date-ranges.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/federal-holidays.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/fiscal-months.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/fiscal-quarters.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/fiscal-weeks.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/fiscal-years.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/index.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/installation.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/progress.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/user-guide/workdays-and-weekends.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mkdocs.yml" beforeDir="false" afterPath="$PROJECT_DIR$/mkdocs.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -72,6 +54,11 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\terry\source\repos\Fiscal" />
+    </key>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -87,7 +74,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1785606909446</updated>
-      <workItem from="1785606909449" duration="12885000" />
+      <workItem from="1785606909449" duration="13090000" />
     </task>
     <task id="LOCAL-00001" summary="updates">
       <option name="closed" value="true" />
@@ -393,7 +380,15 @@
       <option name="project" value="LOCAL" />
       <updated>1785624784509</updated>
     </task>
-    <option name="localTasksCounter" value="39" />
+    <task id="LOCAL-00039" summary="updates">
+      <option name="closed" value="true" />
+      <created>1785625150019</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1785625150019</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

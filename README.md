@@ -54,13 +54,17 @@ Fiscal is a Python framework for U.S. federal fiscal-year and calendar-year calc
 ## 🏗️ Installation
 
 ```bash
+
 pip install fiscal
+
 ```
 
 Runtime dependencies used by the audited implementation include `pandas` and `boogr`.
 
 ```bash
+
 pip install pandas boogr
+
 ```
 
 <a id="configuration"></a>
@@ -70,46 +74,55 @@ pip install pandas boogr
 Fiscal expects `config.py` to define the SQLite path and approved table names:
 
 ```python
+
 DB_PATH: str
 TABLES: list[ str ]
+
 ```
 
 ```python
+
 TABLES = [
     "BudgetFiscalYears",
     "FederalHolidays",
 ]
+
 ```
 
 The table order is significant:
 
-| Index | Table |
-|---:|---|
-| `0` | `BudgetFiscalYears` |
-| `1` | `FederalHolidays` |
+| Index | Table               |
+|------:|---------------------|
+|   `0` | `BudgetFiscalYears` |
+|   `1` | `FederalHolidays`   |
 
 <a id="quick-start"></a>
 
 ## 🎯 Quick Start
 
 ```python
+
 from datetime import date
 
 from fiscal import FederalHoliday, FiscalYear
+
 ```
 
 Create a fiscal-year object with a fixed calculation date:
 
 ```python
+
 fy = FiscalYear(
     fy=2026,
     current_date=date( 2026, 7, 15 ),
 )
+
 ```
 
 Using an explicit `current_date` makes fiscal progress calculations reproducible. When omitted, Fiscal uses the current system date.
 
 ```python
+
 print( fy.fiscal_year )
 print( fy.start_date )
 print( fy.end_date )
@@ -117,11 +130,13 @@ print( fy.fiscal_month_number( ) )
 print( fy.fiscal_quarter_number( ) )
 print( fy.fiscal_week_number( ) )
 print( fy.fiscal_percent_elapsed( ) )
+
 ```
 
 ### Fiscal-Year Record
 
 ```python
+
 print( fy.bpoa )
 print( fy.epoa )
 print( fy.expiration_date )
@@ -134,22 +149,26 @@ print( fy.compensable_workdays )
 print( fy.compensable_hours )
 print( fy.type )
 print( fy.availability )
+
 ```
 
 Multi-year availability:
 
 ```python
+
 fy = FiscalYear(
     fy=2026,
     bpoa=2024,
     epoa=2026,
     current_date=date( 2026, 7, 15 ),
 )
+
 ```
 
 ### Calendar and Fiscal Progress
 
 ```python
+
 calendar_status = {
     "DayOfYear": fy.calendar_day_of_year( ),
     "DaysElapsed": fy.calendar_days_elapsed( ),
@@ -173,6 +192,7 @@ fiscal_status = {
     "QuarterNumber": fy.fiscal_quarter_number( ),
     "WeekNumber": fy.fiscal_week_number( ),
 }
+
 ```
 
 ### Fiscal Months and Quarters
@@ -180,21 +200,24 @@ fiscal_status = {
 Fiscal months are numbered from October through September.
 
 ```python
+
 month_start, month_end = fy.fiscal_month_bounds( 10 )
 month_name = fy.fiscal_month_name( 10 )
 month_days = fy.fiscal_days_in_month( 10 )
-
 quarter_start, quarter_end = fy.fiscal_quarter_bounds( 4 )
 quarter_days = fy.fiscal_days_in_quarter( 4 )
+
 ```
 
 Count weekday occurrences without importing `calendar`:
 
 ```python
+
 mondays = fy.weekday_occurrences(
     fiscal_month=10,
     weekday="Monday",
 )
+
 ```
 
 Integer weekday values from `0` through `6` remain supported for compatibility.
@@ -204,32 +227,40 @@ Integer weekday values from `0` through `6` remain supported for compatibility.
 Render one fiscal month as plain text:
 
 ```python
+
 text_month = fy.fiscal_month_text_calendar(
     fiscal_month=10,
 )
+
 ```
 
 Render October through September as plain text:
 
 ```python
+
 text_year = fy.fiscal_year_text_calendar( )
+
 ```
 
 Render one fiscal month as an HTML table:
 
 ```python
+
 html_month = fy.fiscal_month_html_calendar(
     fiscal_month=10,
     with_year=True,
 )
+
 ```
 
 Render the entire fiscal year in rows of three month tables:
 
 ```python
+
 html_year = fy.fiscal_year_html_calendar(
     width=3,
 )
+
 ```
 
 The fiscal-year renderers preserve federal fiscal order from October through September.
@@ -237,6 +268,7 @@ The fiscal-year renderers preserve federal fiscal order from October through Sep
 ### Date-Range Analysis
 
 ```python
+
 start_date = date( 2026, 7, 1 )
 end_date = date( 2026, 7, 31 )
 
@@ -254,6 +286,7 @@ summary = {
         end=end_date,
     ),
 }
+
 ```
 
 Range operations are inclusive and constrained to the represented fiscal year. A reversed range or a range that does not intersect the fiscal year raises `boogr.Error`.
@@ -261,34 +294,41 @@ Range operations are inclusive and constrained to the represented fiscal year. A
 Use actual holiday dates instead of observed dates:
 
 ```python
+
 actual_workdays = fy.count_workdays(
     start=start_date,
     end=end_date,
     use_observed=False,
 )
+
 ```
 
 Return native date values:
 
 ```python
+
 holiday_dates = fy.holiday_dates_between(
     start=start_date,
     end=end_date,
 )
+
 ```
 
 Return ISO-formatted strings for compatibility:
 
 ```python
+
 holiday_text = fy.holidays_between(
     start=start_date,
     end=end_date,
 )
+
 ```
 
 ### Date Collections and Monthly Summaries
 
 ```python
+
 dates = fy.fiscal_dates( )
 weekdays = fy.fiscal_weekdays( )
 weekends = fy.fiscal_weekends( )
@@ -299,11 +339,13 @@ weekdays_by_month = fy.weekdays_by_month( )
 weekends_by_month = fy.weekends_by_month( )
 workdays_by_month = fy.workdays_by_month( )
 holidays_by_month = fy.holidays_by_month( )
+
 ```
 
 ### Federal Holidays
 
 ```python
+
 holidays = FederalHoliday( 2026 )
 
 holiday_map = holidays.holidays( )
@@ -311,9 +353,11 @@ independence_day = holiday_map[ "Independence Day" ]
 
 print( independence_day[ "actual" ] )
 print( independence_day[ "observed" ] )
+
 ```
 
 ```python
+
 print(
     holidays.is_holiday(
         when=date( 2026, 7, 3 ),
@@ -322,6 +366,7 @@ print(
 )
 
 print( holidays.is_weekend( date( 2026, 7, 4 ) ) )
+
 ```
 
 <a id="api-overview"></a>
@@ -329,7 +374,9 @@ print( holidays.is_weekend( date( 2026, 7, 4 ) ) )
 ## 🧠 API Overview
 
 ```python
+
 from fiscal import DB, FederalHoliday, FiscalYear, throw_if, to_date
+
 ```
 
 ### `FiscalYear`
@@ -345,7 +392,7 @@ FiscalYear(
 )
 ```
 
-#### Progress and Boundaries
+### Ranges and Boundaries
 
 - `calendar_day_of_year()`
 - `calendar_days_in_year()`
@@ -367,7 +414,7 @@ FiscalYear(
 - `fiscal_percent_elapsed()`
 - `fiscal_bounds()`
 
-#### Fiscal Periods
+### Fiscal Periods
 
 - `fiscal_month_number()`
 - `fiscal_month_bounds(fiscal_month)`
