@@ -22,7 +22,8 @@
 
 ___
 
-Fiscal is a Python framework for U.S. federal fiscal-year and calendar-year calculations, including fiscal months, quarters, and weeks; workdays and weekends; and actual and observed federal holidays.
+Fiscal is a Python framework for U.S. federal budget fiscal-year and calendar-year calculations, 
+including fiscal months, quarters, and weeks; workdays and weekends; and actual and observed federal holidays.
 
 <a id="features"></a>
 
@@ -515,7 +516,7 @@ from fiscal import DB, FederalHoliday, FiscalYear, throw_if, to_date
 
 ## 📚 References
 
-- [Fiscal Year](https://github.com/is-leeroy-jenkins/Fiscal/blob/master/resources/Definitions.md#fiscal-year)
+- [Fiscal Year](https://www.congress.gov/crs_external_products/RS/HTML/98-410.web.html)
 - [Federal Holiday](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/)
 
 <a id="license"></a>

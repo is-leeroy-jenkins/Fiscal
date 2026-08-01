@@ -52,6 +52,40 @@ from boogr import Error
 
 __all__: tuple[ str, ... ] = ('DB', 'FederalHoliday', 'FiscalYear', 'throw_if', 'to_date',)
 
+_WEEKDAY_NAMES: Dict[ str, int ] = { 'MONDAY': calendar.MONDAY, 'TUESDAY': calendar.TUESDAY,
+	'WEDNESDAY': calendar.WEDNESDAY, 'THURSDAY': calendar.THURSDAY, 'FRIDAY': calendar.FRIDAY,
+	'SATURDAY': calendar.SATURDAY, 'SUNDAY': calendar.SUNDAY, }
+
+def _weekday_number( value: int | str ) -> int:
+	"""Resolve a weekday name or number.
+
+	Purpose:
+		Converts a full English weekday name or an integer from 0 through 6 into the weekday
+		number used internally by Python date objects.
+
+	Args:
+		value (int | str): Full weekday name or weekday number where Monday is 0.
+
+	Returns:
+		int: Weekday number from 0 through 6.
+
+	Raises:
+		TypeError: The supplied value is not an integer or string.
+		ValueError: The supplied weekday name or number is invalid.
+	"""
+	if isinstance( value, bool ):
+		raise TypeError( 'Weekday cannot be a Boolean value.' )
+	if isinstance( value, int ):
+		if value < calendar.MONDAY or value > calendar.SUNDAY:
+			raise ValueError( 'Weekday must be between 0 and 6.' )
+		return value
+	if isinstance( value, str ):
+		weekday_name = value.strip( ).upper( )
+		if weekday_name not in _WEEKDAY_NAMES:
+			raise ValueError( f'Unsupported weekday: {value}' )
+		return _WEEKDAY_NAMES[ weekday_name ]
+	raise TypeError( f'Unsupported weekday value: {type( value ).__name__}' )
+
 def throw_if( name: str, value: object ) -> None:
 	"""Validate a required argument.
 
@@ -155,15 +189,9 @@ class DB( ):
 		self.tables = cfg.TABLES
 	
 	def __dir__( self ) -> List[ str ]:
-		"""Return public database members.
-
-		Purpose:
-			Return public database members.
-
-		Returns:
-			List[str]: Value produced by the operation."""
-		return [ 'path', 'tables', 'name', 'data', 'create_connection', 'query_fiscal_year',
-			'query_federal_holiday' ]
+		"""Return public database members."""
+		return [ 'path', 'tables', 'name', 'data', 'create_connection', 'query_year',
+			'query_holiday' ]
 	
 	def create_connection( self ) -> sqlite3.Connection:
 		"""Create a SQLite database connection.
@@ -224,7 +252,8 @@ class DB( ):
 			ex = Error( e )
 			ex.module = 'fiscal'
 			ex.cause = 'DB'
-			ex.method = 'query_fiscal_year( self, **kwargs ) -> pd.DataFrame'
+			ex.method = ('query_year( self, name: str, fy: str, bpoa: str, epoa: str ) -> '
+			             'pd.DataFrame')
 			raise ex
 	
 	def query_holiday( self, name: str, fy: str ) -> pd.DataFrame:
@@ -323,34 +352,31 @@ class FiscalYear( DB ):
 	range_end: Optional[ date ]
 	use_observed: Optional[ bool ]
 	
-	def __init__( self, fy: str, bpoa: str = '', epoa: str = '' ) -> None:
+	def __init__( self, fy: str | int, bpoa: str | int = '', epoa: str | int = '',
+		current_date: date | datetime | str | None = None ) -> None:
 		"""Initialize a budget fiscal-year entity.
 
 		Purpose:
-			Validates constructor input, assigns the query members, retrieves exactly one
-			``BudgetFiscalYears`` row, converts each database field, and initializes calendar
-			state.
+			Retrieves one fiscal-year record and initializes calendar calculations for a
+			caller-selected date. The current system date is used when ``current_date`` is omitted.
 
 		Args:
-			fy (str): Fiscal year used to retrieve the database row.
-			bpoa (str): Beginning period of availability. An empty value defaults to ``fy``.
-			epoa (str): Ending period of availability. An empty value defaults to ``fy``.
+			fy (str | int): Fiscal year used to retrieve the database row.
+			bpoa (str | int): Beginning period of availability. An empty value defaults to ``fy``.
+			epoa (str | int): Ending period of availability. An empty value defaults to ``fy``.
+			current_date (date | datetime | str | None): Date used by calendar and fiscal
+				calculations.
 
 		Returns:
 			None: Initialization does not return a value.
-
-		Raises:
-			ValueError: ``fy`` is empty or a retrieved value cannot be converted.
-			Error: Table validation or database retrieval fails.
-			IndexError: The configured fiscal-year table is unavailable.
-			KeyError: A required database column is missing.
-			TypeError: A retrieved value has an unsupported type."""
+		"""
 		super( ).__init__( )
-		self.fiscal_year = fy
-		self.bpoa = bpoa if bpoa else fy
-		self.epoa = epoa if epoa else fy
+		throw_if( 'fy', fy )
+		self.fiscal_year = str( fy )
+		self.bpoa = str( bpoa ) if bpoa != '' else self.fiscal_year
+		self.epoa = str( epoa ) if epoa != '' else self.fiscal_year
 		self.name = self.tables[ 0 ]
-		df = self.query_year( self.name, self.fiscal_year, self.bpoa, self.epoa, )
+		df = self.query_year( self.name, self.fiscal_year, self.bpoa, self.epoa )
 		row = df.iloc[ 0 ]
 		self.id = int( row[ 'ID' ] )
 		self.fiscal_year = str( row[ 'FiscalYear' ] )
@@ -364,10 +390,14 @@ class FiscalYear( DB ):
 		self.weekends = int( row[ 'Weekends' ] )
 		self.workdays = float( row[ 'Workdays' ] )
 		self.compensable_days = float( row[ 'CompensableDays' ] )
+		self.compensable_workdays = self.compensable_days
 		self.compensable_hours = float( row[ 'CompensableHours' ] )
 		self.type = str( row[ 'Type' ] )
 		self.availability = str( row[ 'Availability' ] )
-		self.current_date = datetime.today( ).date( )
+		calculation_date = datetime.today( ).date( ) if current_date is None else to_date(
+			current_date )
+		throw_if( 'current_date', calculation_date )
+		self.current_date = calculation_date
 		self.calendar_year = self.current_date.year
 		self.cy_start_date = date( self.calendar_year, 1, 1 )
 		self.cy_end_date = date( self.calendar_year, 12, 31 )
@@ -408,8 +438,9 @@ class FiscalYear( DB ):
 			'fiscal_week_number', 'fiscal_week_bounds', 'fiscal_dates', 'fiscal_weekdays',
 			'fiscal_weekends', 'fiscal_workdays', 'fiscal_calendar', 'weekdays_in_month',
 			'weekends_in_month', 'weekday_occurrences', 'weekdays_by_month', 'weekends_by_month',
-			'workdays_by_month', 'holidays_by_month', 'holidays_between', 'holidays_remaining',
-			'workdays_remaining', 'weekends_remaining', 'contains_leap_day',
+			'workdays_by_month', 'holidays_by_month', 'holiday_dates_between', 'holidays_between',
+			'dates_by_month', 'fiscal_month_dates', 'fiscal_month_day_numbers',
+			'holidays_remaining', 'workdays_remaining', 'weekends_remaining', 'contains_leap_day',
 			'leap_days_in_availability', 'current_weekday_name', 'count_weekends',
 			'count_holidays',
 			'count_workdays', 'fiscal_bounds', 'is_fiscal_start_year', 'is_fiscal_end_year',
@@ -710,31 +741,32 @@ class FiscalYear( DB ):
 			ex.method = 'fiscal_percent_elapsed( self ) -> float'
 			raise ex
 	
+	def _fiscal_range( self, start: date | datetime, end: date | datetime ) -> Tuple[ date, date ]:
+		"""Return a validated range clamped to the represented fiscal year."""
+		throw_if( 'start', start )
+		throw_if( 'end', end )
+		range_start = to_date( start )
+		range_end = to_date( end )
+		throw_if( 'range_start', range_start )
+		throw_if( 'range_end', range_end )
+		if range_start > range_end:
+			raise ValueError( 'Start date cannot be later than end date.' )
+		clamped_start = max( range_start, self.start_date )
+		clamped_end = min( range_end, self.end_date )
+		if clamped_start > clamped_end:
+			raise ValueError( 'The supplied range does not intersect the represented fiscal '
+			                  'year.' )
+		return clamped_start, clamped_end
+	
 	def count_weekends( self, start: date | datetime, end: date | datetime ) -> int:
-		"""Count weekend days in an inclusive range.
-
-		Purpose:
-			Count weekend days in an inclusive range.
-
-		Args:
-			start (date | datetime): Value used by the operation.
-			end (date | datetime): Value used by the operation.
-
-		Returns:
-			int: Value produced by the operation.
-
-		Raises:
-			Error: The operation fails and the underlying exception is wrapped."""
+		"""Count weekend days in an inclusive fiscal-year range."""
 		try:
-			throw_if( 'start', start )
-			throw_if( 'end', end )
-			self.range_start = to_date( start )
-			self.range_end = to_date( end )
-			if self.range_start > self.range_end:
-				return 0
+			range_start, range_end = self._fiscal_range( start, end )
+			self.range_start = range_start
+			self.range_end = range_end
 			count = 0
-			current = self.range_start
-			while current <= self.range_end:
+			current = range_start
+			while current <= range_end:
 				if current.weekday( ) >= 5:
 					count += 1
 				current += timedelta( days=1 )
@@ -769,71 +801,38 @@ class FiscalYear( DB ):
 	
 	def count_holidays( self, start: date | datetime, end: date | datetime,
 		use_observed: bool = True ) -> int:
-		"""Count federal holidays in an inclusive range.
-
-		Purpose:
-			Count federal holidays in an inclusive range.
-
-		Args:
-			start (date | datetime): Value used by the operation.
-			end (date | datetime): Value used by the operation.
-			use_observed (bool): Value used by the operation.
-
-		Returns:
-			int: Value produced by the operation.
-
-		Raises:
-			Error: The operation fails and the underlying exception is wrapped."""
+		"""Count federal holidays in an inclusive fiscal-year range."""
 		try:
-			throw_if( 'start', start )
-			throw_if( 'end', end )
-			self.range_start = to_date( start )
-			self.range_end = to_date( end )
+			range_start, range_end = self._fiscal_range( start, end )
+			self.range_start = range_start
+			self.range_end = range_end
 			self.use_observed = use_observed
-			if self.range_start > self.range_end:
-				return 0
 			federal_holiday = FederalHoliday( self.fiscal_year )
-			key = 'observed' if self.use_observed else 'actual'
+			key = 'observed' if use_observed else 'actual'
 			return sum( 1 for payload in federal_holiday.holidays( ).values( ) if
-				self.range_start <= payload[ key ] <= self.range_end )
+				range_start <= payload[ key ] <= range_end )
 		except Exception as e:
 			ex = Error( e )
 			ex.module = 'fiscal'
 			ex.cause = 'FiscalYear'
-			ex.method = 'count_holidays( self, **kwargs ) -> int'
+			ex.method = ('count_holidays( self, start: date | datetime, end: date | datetime, '
+			             'use_observed: bool = True ) -> int')
 			raise ex
 	
 	def count_workdays( self, start: date | datetime, end: date | datetime,
 		use_observed: bool = True ) -> int:
-		"""Count workdays in an inclusive range.
-
-		Purpose:
-			Count workdays in an inclusive range.
-
-		Args:
-			start (date | datetime): Value used by the operation.
-			end (date | datetime): Value used by the operation.
-			use_observed (bool): Value used by the operation.
-
-		Returns:
-			int: Value produced by the operation.
-
-		Raises:
-			Error: The operation fails and the underlying exception is wrapped."""
+		"""Count workdays in an inclusive fiscal-year range."""
 		try:
-			throw_if( 'start', start )
-			throw_if( 'end', end )
-			self.range_start = to_date( start )
-			self.range_end = to_date( end )
+			range_start, range_end = self._fiscal_range( start, end )
+			self.range_start = range_start
+			self.range_end = range_end
 			self.use_observed = use_observed
-			if self.range_start > self.range_end:
-				return 0
 			federal_holiday = FederalHoliday( self.fiscal_year )
-			key = 'observed' if self.use_observed else 'actual'
+			key = 'observed' if use_observed else 'actual'
 			holiday_dates = { payload[ key ] for payload in federal_holiday.holidays( ).values( ) }
 			count = 0
-			current = self.range_start
-			while current <= self.range_end:
+			current = range_start
+			while current <= range_end:
 				if current.weekday( ) < 5 and current not in holiday_dates:
 					count += 1
 				current += timedelta( days=1 )
@@ -842,7 +841,8 @@ class FiscalYear( DB ):
 			ex = Error( e )
 			ex.module = 'fiscal'
 			ex.cause = 'FiscalYear'
-			ex.method = 'count_workdays( self, **kwargs ) -> int'
+			ex.method = ('count_workdays( self, start: date | datetime, end: date | datetime, '
+			             'use_observed: bool = True ) -> int')
 			raise ex
 	
 	def calendar_bounds( self ) -> Tuple[ date, date ]:
@@ -887,18 +887,9 @@ class FiscalYear( DB ):
 			raise ex
 	
 	def is_fiscal_start_year( self ) -> bool:
-		"""Determine whether the current date starts the fiscal year.
-
-		Purpose:
-			Determine whether the current date starts the fiscal year.
-
-		Returns:
-			bool: Value produced by the operation.
-
-		Raises:
-			Error: The operation fails and the underlying exception is wrapped."""
+		"""Determine whether the calculation date starts the fiscal year."""
 		try:
-			return self.current_date.year == self.start_date.year
+			return self.current_date == self.start_date
 		except Exception as e:
 			ex = Error( e )
 			ex.module = 'fiscal'
@@ -907,18 +898,9 @@ class FiscalYear( DB ):
 			raise ex
 	
 	def is_fiscal_end_year( self ) -> bool:
-		"""Determine whether the current date ends the fiscal year.
-
-		Purpose:
-			Determine whether the current date ends the fiscal year.
-
-		Returns:
-			bool: Value produced by the operation.
-
-		Raises:
-			Error: The operation fails and the underlying exception is wrapped."""
+		"""Determine whether the calculation date ends the fiscal year."""
 		try:
-			return self.current_date.year == self.end_date.year
+			return self.current_date == self.end_date
 		except Exception as e:
 			ex = Error( e )
 			ex.module = 'fiscal'
@@ -927,18 +909,9 @@ class FiscalYear( DB ):
 			raise ex
 	
 	def is_calendar_start_year( self ) -> bool:
-		"""Determine whether the current date starts the calendar year.
-
-		Purpose:
-			Determine whether the current date starts the calendar year.
-
-		Returns:
-			bool: Value produced by the operation.
-
-		Raises:
-			Error: The operation fails and the underlying exception is wrapped."""
+		"""Determine whether the calculation date starts the calendar year."""
 		try:
-			return self.current_date.year == self.cy_start_date.year
+			return self.current_date == self.cy_start_date
 		except Exception as e:
 			ex = Error( e )
 			ex.module = 'fiscal'
@@ -1218,35 +1191,27 @@ class FiscalYear( DB ):
 			ex.method = 'weekends_in_month( self, fiscal_month: int ) -> int'
 			raise ex
 	
-	def weekday_occurrences( self, fiscal_month: int, weekday: int ) -> int:
+	def weekday_occurrences( self, fiscal_month: int, weekday: int | str ) -> int:
 		"""Return the occurrence count of a weekday in a federal fiscal month.
 
 		Purpose:
-			Counts occurrences of a selected weekday in a federal fiscal month using the weekday
-			numbering defined by ``calendar.MONDAY`` through ``calendar.SUNDAY``.
+			Counts a weekday supplied as a full English name or the existing integer value.
 
 		Args:
 			fiscal_month (int): Federal fiscal-month number from 1 through 12.
-			weekday (int): Weekday number from 0 through 6, where Monday is 0.
+			weekday (int | str): Full weekday name or integer where Monday is 0.
 
 		Returns:
 			int: Number of occurrences of the selected weekday.
-
-		Raises:
-			Error: The fiscal-month or weekday number is invalid, or the count cannot be
-			calculated.
 		"""
 		try:
-			throw_if( 'weekday', weekday ) if weekday != 0 else None
-			self.requested_weekday = weekday
-			if (self.requested_weekday < calendar.MONDAY or self.requested_weekday >
-					calendar.SUNDAY):
-				raise ValueError( 'Weekday must be between 0 and 6.' )
+			requested_weekday = _weekday_number( weekday )
+			self.requested_weekday = requested_weekday
 			month_start, month_end = self.fiscal_month_bounds( fiscal_month )
 			count = 0
 			current = month_start
 			while current <= month_end:
-				if current.weekday( ) == self.requested_weekday:
+				if current.weekday( ) == requested_weekday:
 					count += 1
 				current += timedelta( days=1 )
 			return count
@@ -1254,7 +1219,8 @@ class FiscalYear( DB ):
 			ex = Error( e )
 			ex.module = 'fiscal'
 			ex.cause = 'FiscalYear'
-			ex.method = ('weekday_occurrences( self, fiscal_month: int, weekday: int ) -> int')
+			ex.method = ('weekday_occurrences( self, fiscal_month: int, weekday: int | str ) -> '
+			             'int')
 			raise ex
 	
 	def contains_leap_day( self ) -> bool:
@@ -1593,6 +1559,18 @@ class FiscalYear( DB ):
 			ex.method = 'fiscal_calendar( self ) -> Dict[ str, List[ date ] ]'
 			raise ex
 	
+	def fiscal_month_dates( self, fiscal_month: int ) -> List[ List[ date ] ]:
+		"""Return complete date rows for a federal fiscal month."""
+		return self.fiscal_month_calendar( fiscal_month )
+	
+	def fiscal_month_day_numbers( self, fiscal_month: int ) -> List[ List[ int ] ]:
+		"""Return day-number rows for a federal fiscal month."""
+		return self.fiscal_month_weeks( fiscal_month )
+	
+	def dates_by_month( self ) -> Dict[ str, List[ date ] ]:
+		"""Return fiscal-year dates grouped by month name."""
+		return self.fiscal_calendar( )
+	
 	def weekdays_by_month( self ) -> Dict[ str, int ]:
 		"""Return weekday counts grouped by federal fiscal month.
 
@@ -1711,46 +1689,40 @@ class FiscalYear( DB ):
 			             'Dict[ str, List[ date ] ]')
 			raise ex
 	
-	def holidays_between( self, start: date | datetime, end: date | datetime,
-		use_observed: bool = True ) -> Dict[ str, str ]:
-		"""Return federal holiday names and dates within an inclusive range.
-
-		Purpose:
-			Returns holiday-name and ISO-date pairs for observed or actual federal holidays that
-			fall
-			within the supplied inclusive range and the represented fiscal year.
-
-		Args:
-			start (date | datetime): Inclusive beginning date.
-			end (date | datetime): Inclusive ending date.
-			use_observed (bool): Returns observed holiday dates when ``True`` and actual dates when
-				``False``.
-
-		Returns:
-			Dict[str, str]: Holiday names mapped to ISO-formatted dates in chronological order.
-
-		Raises:
-			Error: The date range is invalid or federal-holiday dates cannot be loaded.
-		"""
+	def holiday_dates_between( self, start: date | datetime, end: date | datetime,
+		use_observed: bool = True ) -> Dict[ str, date ]:
+		"""Return federal holiday names and date values within an inclusive range."""
 		try:
-			throw_if( 'start', start )
-			throw_if( 'end', end )
-			self.range_start = to_date( start )
-			self.range_end = to_date( end )
+			range_start, range_end = self._fiscal_range( start, end )
+			self.range_start = range_start
+			self.range_end = range_end
 			self.use_observed = use_observed
-			if self.range_start > self.range_end:
-				raise ValueError( 'Start date cannot be later than end date.' )
-			range_start = max( self.range_start, self.start_date )
-			range_end = min( self.range_end, self.end_date )
-			if range_start > range_end:
-				return { }
 			federal_holiday = FederalHoliday( self.fiscal_year )
-			key = 'observed' if self.use_observed else 'actual'
+			key = 'observed' if use_observed else 'actual'
 			matches = [ (name, payload[ key ]) for name, payload in
 				federal_holiday.holidays( ).items( ) if range_start <= payload[ key ] <=
 				                                        range_end ]
 			matches.sort( key=lambda item: item[ 1 ] )
-			return { name: holiday_date.isoformat( ) for name, holiday_date in matches }
+			return { name: holiday_date for name, holiday_date in matches }
+		except Exception as e:
+			ex = Error( e )
+			ex.module = 'fiscal'
+			ex.cause = 'FiscalYear'
+			ex.method = ('holiday_dates_between( self, start: date | datetime, end: date | '
+			             'datetime, use_observed: bool = True ) -> Dict[ str, date ]')
+			raise ex
+	
+	def holidays_between( self, start: date | datetime, end: date | datetime,
+		use_observed: bool = True ) -> Dict[ str, str ]:
+		"""Return federal holiday names and ISO dates within an inclusive range.
+
+		Purpose:
+			Preserves the existing string-based return contract. Use ``holiday_dates_between`` for
+			date values.
+		"""
+		try:
+			return { name: holiday_date.isoformat( ) for name, holiday_date in
+				self.holiday_dates_between( start, end, use_observed ).items( ) }
 		except Exception as e:
 			ex = Error( e )
 			ex.module = 'fiscal'
@@ -1921,7 +1893,7 @@ class FederalHoliday( DB ):
 	when: date
 	use_observed: bool
 	
-	def __init__( self, fiscal_year: str ) -> None:
+	def __init__( self, fiscal_year: str | int ) -> None:
 		"""Initialize a federal-holiday entity.
 
 		Purpose:
@@ -1943,7 +1915,7 @@ class FederalHoliday( DB ):
 			TypeError: A retrieved value has an unsupported type."""
 		super( ).__init__( )
 		throw_if( 'fiscal_year', fiscal_year )
-		self.input_fiscal_year = fiscal_year
+		self.input_fiscal_year = str( fiscal_year )
 		self.name = self.tables[ 1 ]
 		df = self.query_holiday( self.name, self.input_fiscal_year )
 		row = df.iloc[ 0 ]
@@ -2106,10 +2078,9 @@ class FederalHoliday( DB ):
 		Raises:
 			Error: The operation fails and the underlying exception is wrapped."""
 		try:
-			return { 'ID': self.id, 'FiscalYear': self.fiscal_year,
-				'ColumbusDay': self.columbus_day, 'VeteransDay': self.veterans_day,
-				'ThanksgivingDay': self.thanksgiving_day, 'ChristmasDay': self.christmas_day,
-				'NewYearsDay': self.new_years_day,
+			return { 'FiscalYear': self.fiscal_year, 'ColumbusDay': self.columbus_day,
+				'VeteransDay': self.veterans_day, 'ThanksgivingDay': self.thanksgiving_day,
+				'ChristmasDay': self.christmas_day, 'NewYearsDay': self.new_years_day,
 				'MartinLutherKingDay': self.martin_luther_king_day,
 				'PresidentsDay': self.presidents_day, 'MemorialDay': self.memorial_day,
 				'JuneteenthDay': self.juneteenth_day, 'IndependenceDay': self.independence_day,
