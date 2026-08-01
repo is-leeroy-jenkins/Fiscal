@@ -631,7 +631,7 @@ When adding functionality:
 Before release:
 
 ```bash
-python -m py_compile fiscal/__init__.py
+python -m py_compile fiscal/fiscal.py
 pytest
 ```
 

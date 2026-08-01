@@ -1,14 +1,14 @@
 '''
     ******************************************************************************************
-      Assembly:                Fiscal
-      Filename:                __init__.py
+      Assembly:                fiscal
+      Filename:                fiscal.py
       Author:                  Terry D. Eppler
       Created:                 08-26-2025
 
       Last Modified By:        Terry D. Eppler
       Last Modified On:        08-26-2025
     ******************************************************************************************
-    <copyright file="budget_fiscal_year.py" company="Terry D. Eppler">
+    <copyright file="init.py" company="Terry D. Eppler">
 
          Budget Fiscal Year Tools
 
@@ -36,7 +36,7 @@
 
     </copyright>
     <summary>
-        __init__.py
+        fiscal.py
     </summary>
     ******************************************************************************************
 '''

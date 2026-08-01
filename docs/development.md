@@ -21,7 +21,7 @@ black fiscal
 ## Validate Python
 
 ```bash
-python -m py_compile fiscal/__init__.py
+python -m py_compile fiscal/fiscal.py
 ```
 
 ## Build Documentation
@@ -58,7 +58,7 @@ Tests should cover:
 Before release:
 
 ```bash
-python -m py_compile fiscal/__init__.py
+python -m py_compile fiscal/fiscal.py
 pytest
 mkdocs build --strict
 ```
