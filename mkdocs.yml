@@ -1,0 +1,179 @@
+site_name: Fiscal
+site_description: U.S. federal fiscal-year, calendar-year, federal-holiday, workday, weekend, and calendar-rendering tools for Python.
+site_author: Terry D. Eppler
+site_url: https://is-leeroy-jenkins.github.io/Fiscal/
+
+repo_name: is-leeroy-jenkins/Fiscal
+repo_url: https://github.com/is-leeroy-jenkins/Fiscal
+edit_uri: edit/master/docs/
+
+copyright: Copyright &copy; 2022 Terry D. Eppler
+
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+strict: true
+
+theme:
+  name: material
+  language: en
+  logo: images/github/project_tempus.png
+  favicon: images/github/project_tempus.png
+
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue grey
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue grey
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/file-edit-outline
+    view: material/file-eye-outline
+
+nav:
+  - Home: index.md
+
+  - Architecture: architecture.md
+
+  - User Guide:
+      - Overview: user-guide/index.md
+      - Installation: user-guide/installation.md
+      - Fiscal Years: user-guide/fiscal-years.md
+      - Calendar and Fiscal Progress: user-guide/progress.md
+      - Fiscal Months: user-guide/fiscal-months.md
+      - Fiscal Quarters: user-guide/fiscal-quarters.md
+      - Fiscal Weeks: user-guide/fiscal-weeks.md
+      - Federal Holidays: user-guide/federal-holidays.md
+      - Date Ranges: user-guide/date-ranges.md
+      - Workdays and Weekends: user-guide/workdays-and-weekends.md
+      - Calendar Rendering: user-guide/calendar-rendering.md
+      - Data Exports: user-guide/data-exports.md
+
+  - API Reference:
+      - Overview: api/index.md
+      - Fiscal Module: api/fiscal.md
+
+  - Development: development.md
+
+plugins:
+  - search:
+      lang: en
+
+  - autorefs
+
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - .
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            filters:
+              - "!^_"
+            heading_level: 2
+            inherited_members: false
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_category_heading: true
+            show_if_no_docstring: true
+            show_inheritance_diagram: false
+            show_labels: true
+            show_object_full_path: false
+            show_root_full_path: false
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: true
+            signature_crossrefs: true
+            summary:
+              attributes: true
+              classes: true
+              functions: true
+              methods: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      permalink_title: Anchor link to this section
+      toc_depth: 3
+
+  - pymdownx.betterem:
+      smart_enable: all
+
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      base_path:
+        - .
+        - docs
+      check_paths: true
+
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+  - pymdownx.tilde
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/is-leeroy-jenkins/Fiscal
+      name: Fiscal on GitHub
+
+  generator: false
