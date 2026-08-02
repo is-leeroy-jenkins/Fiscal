@@ -301,7 +301,7 @@ class FiscalYear( DB ):
 		current calculation date.
 
 	Attributes:
-		holidays (List[ Dict[ str str ] ]):  List of holidays for a iven fiscal year
+		holidays (List[ Dict[ str str ] ]):  List of holidays for a given fiscal year
 		range_start (date | None): Normalized start date assigned by range-counting methods.
 		range_end (date | None): Normalized end date assigned by range-counting methods.
 		use_observed (bool): Indicates whether observed holiday dates are used.
