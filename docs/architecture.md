@@ -14,17 +14,20 @@ No additional domain classes are required for calendar rendering. Text and HTML 
 
 ```text
 config.py
-   │
-   ├── DB_PATH
-   └── TABLES
-          │
-          ▼
-         DB
-      ┌───┴───────────────┐
-      ▼                   ▼
- FiscalYear        FederalHoliday
-      │                   │
-      └──── holiday calculations ────┘
+├── DB_PATH
+└── TABLES
+     │
+     ▼
+     DB
+     ├──────────────────────┐
+     │                      │
+     ▼                      ▼
+FiscalYear           FederalHoliday
+     │                      │
+     ├── Fiscal periods     ├── Actual dates
+     ├── Date ranges        ├── Observed dates
+     ├── Workday counts     └── Holiday tests
+     └── Calendar output
 ```
 
 ## Configuration

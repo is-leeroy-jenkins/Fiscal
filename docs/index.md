@@ -1,4 +1,6 @@
 # Fiscal
+![fiscal](images/project-fiscal.png)
+___
 
 Fiscal provides U.S. federal fiscal-year, calendar-year, federal-holiday, workday, weekend, and calendar-rendering tools for Python.
 
