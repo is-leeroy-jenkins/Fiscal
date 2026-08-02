@@ -298,8 +298,7 @@ class FiscalYear( DB ):
 	Purpose:
 		Maps one ``BudgetFiscalYears`` database row to typed properties and provides calendar-year,
 		fiscal-year, holiday, weekend, and workday calculations derived from that row and the
-		current
-		calculation date.
+		current calculation date.
 
 	Attributes:
 		holidays (List[ Dict[ str str ] ]) - List of holidays for a iven fiscal year
@@ -1553,7 +1552,7 @@ class FiscalYear( DB ):
 
 		Raises:
 			Error: The fiscal-week number is outside the represented fiscal year or cannot be
-			resolved.
+				resolved.
 		"""
 		try:
 			throw_if( 'fiscal_week', fiscal_week )
