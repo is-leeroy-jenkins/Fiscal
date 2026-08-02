@@ -1980,8 +1980,7 @@ class FiscalYear( DB ):
 
 		Args:
 			use_observed (bool): Excludes observed holiday dates when ``True`` and actual dates
-			when
-				``False``.
+				when ``False``.
 
 		Returns:
 			int: Inclusive number of remaining workdays.
