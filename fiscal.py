@@ -1829,13 +1829,11 @@ class FiscalYear( DB ):
 
 		Purpose:
 			Returns Monday-through-Friday counts after excluding observed or actual federal
-			holidays
-			for each month in the represented fiscal year.
+			holidays for each month in the represented fiscal year.
 
 		Args:
 			use_observed (bool): Excludes observed holiday dates when ``True`` and actual dates
-			when
-				``False``.
+				when ``False``.
 
 		Returns:
 			Dict[str, int]: Fiscal-month names mapped to workday counts.
